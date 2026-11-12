@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) 
+        && request.resource.data.uid == userId
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 256;
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == existing().uid;
+      allow delete: if isOwner(userId);
+    }
+
+    // User progress and roadmap completion
+    match /userProgress/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.userId == userId;
+      allow update: if isOwner(userId)
+        && request.resource.data.userId == existing().userId;
+      allow delete: if isOwner(userId);
+    }
+
+    // Chat sessions
+    match /chatSessions/{sessionId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && isValidId(sessionId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 256;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // Messages in chat session
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() 
+          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.role in ['user', 'model', 'system'];
+        allow update, delete: if isSignedIn()
+          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
+      }
+    }
+
+    // Generated AI Architecture / Concept Images
+    match /generatedImages/{imageId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(imageId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.prompt is string
+        && request.resource.data.prompt.size() <= 4096;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

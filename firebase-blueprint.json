@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile and authentication details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 1024 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "UserProgress": {
+      "title": "UserProgress",
+      "description": "User learning progress, streak, and completed roadmap concepts",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "completedConcepts": { "type": "array" },
+        "completedDays": { "type": "array" },
+        "currentStreak": { "type": "number" },
+        "longestStreak": { "type": "number" },
+        "lastCompletedDate": { "type": "string", "maxLength": 32 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "Gemini chatbot conversation session",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "model": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["sessionId", "userId", "title"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual message inside a chat session",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string", "maxLength": 128 },
+        "sessionId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["user", "model", "system"] },
+        "content": { "type": "string", "maxLength": 100000 },
+        "sources": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["messageId", "sessionId", "userId", "role", "content"]
+    },
+    "GeneratedImage": {
+      "title": "GeneratedImage",
+      "description": "Prompt-generated AI architecture or concept visualization",
+      "type": "object",
+      "properties": {
+        "imageId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "prompt": { "type": "string", "maxLength": 4096 },
+        "imageUrl": { "type": "string" },
+        "aspectRatio": { "type": "string", "maxLength": 16 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["imageId", "userId", "prompt", "imageUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document keyed by user auth UID"
+    },
+    "/userProgress/{userId}": {
+      "schema": "UserProgress",
+      "description": "User progress and streak data keyed by user auth UID"
+    },
+    "/chatSessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "Chat session metadata created by a user"
+    },
+    "/chatSessions/{sessionId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Messages belonging to a chat session"
+    },
+    "/generatedImages/{imageId}": {
+      "schema": "GeneratedImage",
+      "description": "User generated image assets"
+    }
+  }
+}
