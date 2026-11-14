@@ -1,14 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Default-deny catch-all
     match /{document=**} {
       allow read, write: if false;
     }
 
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
 
     function isOwner(userId) {
@@ -19,69 +31,160 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // User profile documents
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1024))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidUserProgress(data, userId) {
+      return data.keys().hasAll(['userId'])
+        && data.keys().hasOnly([
+          'userId',
+          'completedConcepts',
+          'completedDays',
+          'currentStreak',
+          'longestStreak',
+          'lastCompletedDate',
+          'preferredPace',
+          'studyReminder',
+          'updatedAt'
+        ])
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && (!('completedConcepts' in data) || (data.completedConcepts is list && data.completedConcepts.size() <= 500))
+        && (!('completedDays' in data) || (data.completedDays is list && data.completedDays.size() <= 1000))
+        && (!('currentStreak' in data) || (data.currentStreak is number && data.currentStreak >= 0 && data.currentStreak <= 10000))
+        && (!('longestStreak' in data) || (data.longestStreak is number && data.longestStreak >= 0 && data.longestStreak <= 10000))
+        && (!('lastCompletedDate' in data) || (data.lastCompletedDate is string && data.lastCompletedDate.size() <= 32))
+        && (!('preferredPace' in data) || (data.preferredPace is string && data.preferredPace.size() <= 32))
+        && (!('studyReminder' in data) || (data.studyReminder is map))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidChatSession(data, sessionId) {
+      return data.keys().hasAll(['sessionId', 'userId', 'title'])
+        && data.keys().hasOnly(['sessionId', 'userId', 'title', 'model', 'createdAt', 'updatedAt'])
+        && data.sessionId == sessionId
+        && data.userId == request.auth.uid
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 256
+        && (!('model' in data) || (data.model is string && data.model.size() <= 64))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidChatMessage(data, messageId, sessionId) {
+      return data.keys().hasAll(['messageId', 'sessionId', 'userId', 'role', 'content'])
+        && data.keys().hasOnly(['messageId', 'sessionId', 'userId', 'role', 'content', 'sources', 'createdAt'])
+        && data.messageId == messageId
+        && data.sessionId == sessionId
+        && data.userId == request.auth.uid
+        && data.role in ['user', 'model', 'system']
+        && data.content is string && data.content.size() <= 100000
+        && (!('sources' in data) || (data.sources is list && data.sources.size() <= 20))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidGeneratedImage(data, imageId) {
+      return data.keys().hasAll(['imageId', 'userId', 'prompt', 'imageUrl'])
+        && data.keys().hasOnly(['imageId', 'userId', 'prompt', 'imageUrl', 'aspectRatio', 'createdAt'])
+        && data.imageId == imageId
+        && data.userId == request.auth.uid
+        && data.prompt is string && data.prompt.size() > 0 && data.prompt.size() <= 4096
+        && data.imageUrl is string && data.imageUrl.size() <= 900000
+        && (!('aspectRatio' in data) || (data.aspectRatio is string && data.aspectRatio.size() <= 16))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    // User profile documents (PII isolated to owner)
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) 
-        && request.resource.data.uid == userId
-        && request.resource.data.email is string
-        && request.resource.data.email.size() <= 256;
-      allow update: if isOwner(userId)
-        && request.resource.data.uid == existing().uid;
-      allow delete: if isOwner(userId);
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isEmailVerified()
+        && isValidUserProfile(incoming(), userId);
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isEmailVerified()
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && (!('createdAt' in existing()) || incoming().createdAt == existing().createdAt);
+      allow delete: if isValidId(userId) && isOwner(userId);
     }
 
     // User progress and roadmap completion
     match /userProgress/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId)
-        && request.resource.data.userId == userId;
-      allow update: if isOwner(userId)
-        && request.resource.data.userId == existing().userId;
-      allow delete: if isOwner(userId);
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isEmailVerified()
+        && isValidUserProgress(incoming(), userId);
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isEmailVerified()
+        && isValidUserProgress(incoming(), userId)
+        && incoming().userId == existing().userId;
+      allow delete: if isValidId(userId) && isOwner(userId);
     }
 
     // Chat sessions
     match /chatSessions/{sessionId} {
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() 
-        && isValidId(sessionId)
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.title is string
-        && request.resource.data.title.size() <= 256;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == resource.data.userId;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isValidId(sessionId) && isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+      allow create: if isValidId(sessionId)
+        && isEmailVerified()
+        && isValidChatSession(incoming(), sessionId);
+      allow update: if isValidId(sessionId)
+        && isEmailVerified()
+        && existing().userId == request.auth.uid
+        && isValidChatSession(incoming(), sessionId)
+        && incoming().userId == existing().userId
+        && incoming().sessionId == existing().sessionId;
+      allow delete: if isValidId(sessionId) && isSignedIn() && existing().userId == request.auth.uid;
 
       // Messages in chat session
       match /messages/{messageId} {
-        allow get, list: if isSignedIn() 
+        allow get: if isValidId(sessionId) && isValidId(messageId) && isSignedIn()
           && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
-        allow create: if isSignedIn()
-          && isValidId(messageId)
-          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid
-          && request.resource.data.userId == request.auth.uid
-          && request.resource.data.role in ['user', 'model', 'system'];
-        allow update, delete: if isSignedIn()
+        allow list: if isValidId(sessionId) && isSignedIn()
+          && existing().userId == request.auth.uid;
+        allow create: if isValidId(sessionId) && isValidId(messageId) && isEmailVerified()
+          && isValidChatMessage(incoming(), messageId, sessionId)
+          && exists(/databases/$(database)/documents/chatSessions/$(sessionId))
+          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
+        allow update: if isValidId(sessionId) && isValidId(messageId) && isEmailVerified()
+          && existing().userId == request.auth.uid
+          && isValidChatMessage(incoming(), messageId, sessionId)
+          && incoming().userId == existing().userId
+          && incoming().messageId == existing().messageId
+          && incoming().sessionId == existing().sessionId
+          && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
+        allow delete: if isValidId(sessionId) && isValidId(messageId) && isSignedIn()
+          && existing().userId == request.auth.uid
           && get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == request.auth.uid;
       }
     }
 
     // Generated AI Architecture / Concept Images
     match /generatedImages/{imageId} {
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn()
-        && isValidId(imageId)
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.prompt is string
-        && request.resource.data.prompt.size() <= 4096;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == resource.data.userId;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isValidId(imageId) && isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && existing().userId == request.auth.uid;
+      allow create: if isValidId(imageId)
+        && isEmailVerified()
+        && isValidGeneratedImage(incoming(), imageId);
+      allow update: if isValidId(imageId)
+        && isEmailVerified()
+        && existing().userId == request.auth.uid
+        && isValidGeneratedImage(incoming(), imageId)
+        && incoming().userId == existing().userId
+        && incoming().imageId == existing().imageId;
+      allow delete: if isValidId(imageId) && isSignedIn() && existing().userId == request.auth.uid;
     }
   }
 }

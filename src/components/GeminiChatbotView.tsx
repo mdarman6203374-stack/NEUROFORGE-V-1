@@ -13,10 +13,12 @@ import {
   HelpCircle,
   ExternalLink,
   Loader2,
-  RefreshCw
+  Cloud,
+  HardDrive
 } from 'lucide-react';
-import { Language } from '../types';
+import { Language, LearnerTutorContext } from '../types';
 import { LiveVoiceMentor } from './LiveVoiceMentor';
+import { useAuth } from '../firebase/authContext';
 
 interface Message {
   id: string;
@@ -29,9 +31,14 @@ interface Message {
 
 interface GeminiChatbotViewProps {
   language: Language;
+  learnerContext?: LearnerTutorContext;
 }
 
-export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }) => {
+export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({
+  language,
+  learnerContext
+}) => {
+  const { user, dbMode, saveTutorMessage, loadTutorMessages } = useAuth();
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem('neuroforge_chat_history');
@@ -43,26 +50,41 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
         role: 'model',
         content:
           language === 'hinglish'
-            ? 'Namaste! Main hoon aapka AI Engineering Mentor (NeuroMentor). Main aapko Mathematics, Transformers, Production RAG, Multi-Agent Swarms, aur 2027 Reasoning Models mein guide karne ke liye taiyaar hoon. Aap mujhse koi bhi concept, code review, ya technical interview doubt pooch sakte hain!'
-            : 'Hello! I am NeuroMentor, your Lead AI Engineering Principal & Mentor. I am here to help you master Mathematics, Deep Learning, Transformers, Production RAG, Autonomous Agent Swarms, and Future AI Architectures. Ask me any concept, architectural trade-off, or interview question!',
+            ? 'Namaste! Main hoon aapka 24/7 AI Tutor (NeuroMentor). Main aapko Mathematics, Transformers, Production RAG, Multi-Agent Swarms, aur coding challenges mein din-raat guide karne ke liye ready hoon. Koi bhi concept, bug, ya interview doubt poochhein!'
+            : 'Hello! I am your 24/7 AI Tutor (NeuroMentor). I am always online to help you master Mathematics, Deep Learning, Transformers, Production RAG, and coding challenges. Ask any concept, code bug, or interview question anytime!',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelUsed: 'gemini-3.8-flash',
+        modelUsed: 'gemini-4-hydrogen',
       },
     ];
   });
 
   const [inputPrompt, setInputPrompt] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-3.8-flash');
-  const [enableSearchGrounding, setEnableSearchGrounding] = useState<boolean>(true);
-  const [selectedRole, setSelectedRole] = useState<string>('general');
+  const [selectedModel, setSelectedModel] = useState<string>('gemini-4-hydrogen');
+  const [enableSearchGrounding, setEnableSearchGrounding] = useState<boolean>(false);
+  const [selectedRole, setSelectedRole] = useState<string>('socratic-tutor');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const cloudSessionId = user ? `tutor_${user.uid}` : 'tutor_guest';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Load persisted tutor messages from Firestore when signed in & Cloud DB mode active
+  useEffect(() => {
+    if (user && dbMode === 'firestore-cloud') {
+      loadTutorMessages(cloudSessionId)
+        .then((cloudMsgs) => {
+          if (cloudMsgs && cloudMsgs.length > 0) {
+            setMessages(cloudMsgs);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, dbMode, cloudSessionId, loadTutorMessages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -87,8 +109,11 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
     setInputPrompt('');
     setIsLoading(true);
 
+    if (user && dbMode === 'firestore-cloud') {
+      saveTutorMessage(cloudSessionId, userMessage).catch(() => {});
+    }
+
     try {
-      // Build conversation history for API
       const conversationPayload = newMessages.map((m) => ({
         role: m.role,
         content: m.content,
@@ -100,8 +125,9 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
         body: JSON.stringify({
           messages: conversationPayload,
           model: selectedModel,
-          enableSearchGrounding: enableSearchGrounding && selectedModel === 'gemini-3.8-flash',
+          enableSearchGrounding: enableSearchGrounding && selectedModel === 'gemini-4-hydrogen',
           userRole: selectedRole,
+          learnerContext,
         }),
       });
 
@@ -122,6 +148,9 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
       };
 
       setMessages((prev) => [...prev, modelMessage]);
+      if (user && dbMode === 'firestore-cloud') {
+        saveTutorMessage(cloudSessionId, modelMessage).catch(() => {});
+      }
     } catch (err: any) {
       console.error('Chat error:', err);
       const errorMessage: Message = {
@@ -137,19 +166,23 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
   };
 
   const handleClearHistory = () => {
-    if (confirm('Are you sure you want to clear your chat history?')) {
-      const reset = [
-        {
-          id: 'init-1',
-          role: 'model' as const,
-          content: 'Chat history cleared. How can I assist your AI Engineering studies today?',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          modelUsed: selectedModel,
-        },
-      ];
-      setMessages(reset);
-      localStorage.removeItem('neuroforge_chat_history');
+    if (!confirmClear) {
+      setConfirmClear(true);
+      setTimeout(() => setConfirmClear(false), 3000);
+      return;
     }
+    const reset = [
+      {
+        id: 'init-1',
+        role: 'model' as const,
+        content: '24/7 AI Tutor chat reset. How can I assist your AI Engineering studies today?',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelUsed: selectedModel,
+      },
+    ];
+    setMessages(reset);
+    setConfirmClear(false);
+    localStorage.removeItem('neuroforge_chat_history');
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -182,12 +215,14 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
       {/* Header Banner */}
       <div className="relative p-6 sm:p-8 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 text-white border border-slate-800 shadow-xl overflow-hidden">
         <div className="relative z-10 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-indigo-400">
             <Bot className="w-4 h-4 text-emerald-400" />
-            <span>AI COPILOT & MENTOR</span>
+            <span>24/7 AI TUTOR & VOICE MENTOR</span>
             <span aria-hidden="true">·</span>
-            <span>MULTI-TURN GEMINI REASONING</span>
-            {enableSearchGrounding && selectedModel === 'gemini-3.8-flash' && (
+            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[10px]">
+              ALWAYS ONLINE
+            </span>
+            {enableSearchGrounding && selectedModel === 'gemini-4-hydrogen' && (
               <>
                 <span aria-hidden="true">·</span>
                 <span className="text-emerald-400 flex items-center gap-1 font-mono">
@@ -195,16 +230,28 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
                 </span>
               </>
             )}
+            <span aria-hidden="true">·</span>
+            <span className="text-slate-300 flex items-center gap-1 font-mono text-[11px]">
+              {user && dbMode === 'firestore-cloud' ? (
+                <>
+                  <Cloud className="w-3 h-3 text-indigo-400" /> Cloud Chat Sync
+                </>
+              ) : (
+                <>
+                  <HardDrive className="w-3 h-3 text-slate-400" /> Local History
+                </>
+              )}
+            </span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white">
-            NeuroMentor: Interactive AI Engineering Assistant
+            NeuroMentor: 24/7 Personal AI Engineering Tutor
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-3xl">
             {language === 'hinglish'
-              ? 'Multi-turn chat powered by Gemini models. Live Google Search grounding se latest papers aur AI news check karein, complex STEM problems solve karein aur technical interview practice karein.'
-              : 'Multi-turn AI mentor powered by Gemini with Google Search grounding. Ask architecture doubts, debug PyTorch code, or prepare for technical system design interviews.'}
+              ? 'Din-raat available AI Tutor! Hinglish ya English mein concepts samjhein, code debug karein, mock interviews dein, aur apni learning progress ke hisaab se instant feedback paayein.'
+              : 'Always-on 24/7 AI Engineering Tutor powered by Gemini. Understand concepts step-by-step, debug PyTorch code, verify research via Search grounding, and run live voice practice anytime.'}
           </p>
         </div>
       </div>
@@ -219,24 +266,14 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
           <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Model:</span>
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs">
             <button
-              onClick={() => setSelectedModel('gemini-3.8-flash')}
+              onClick={() => setSelectedModel('gemini-4-hydrogen')}
               className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                selectedModel === 'gemini-3.8-flash'
+                selectedModel === 'gemini-4-hydrogen'
                   ? 'bg-indigo-600 text-white shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              gemini-3.8-flash (General + Search)
-            </button>
-            <button
-              onClick={() => setSelectedModel('gemini-4-argon')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
-                selectedModel === 'gemini-4-argon'
-                  ? 'bg-indigo-600 text-white shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              gemini-4-argon (Complex STEM)
+              gemini-4-hydrogen (Balanced Tutor)
             </button>
             <button
               onClick={() => setSelectedModel('gemini-3.1-flash-lite')}
@@ -255,13 +292,14 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
         <div className="flex items-center gap-3">
           {/* Persona Role */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="font-semibold text-slate-600 dark:text-slate-400">Role:</span>
+            <span className="font-semibold text-slate-600 dark:text-slate-400">Tutor Mode:</span>
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
               className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 cursor-pointer"
             >
-              <option value="general">Principal Mentor</option>
+              <option value="socratic-tutor">24/7 Socratic AI Tutor</option>
+              <option value="general">Principal AI Mentor</option>
               <option value="interview-coach">Interview Screener</option>
               <option value="code-architect">Production Code Architect</option>
             </select>
@@ -270,13 +308,13 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
           {/* Search Grounding Toggle */}
           <button
             onClick={() => setEnableSearchGrounding(!enableSearchGrounding)}
-            disabled={selectedModel !== 'gemini-3.8-flash'}
+            disabled={selectedModel !== 'gemini-4-hydrogen'}
             className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
-              enableSearchGrounding && selectedModel === 'gemini-3.8-flash'
+              enableSearchGrounding && selectedModel === 'gemini-4-hydrogen'
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 opacity-70'
             }`}
-            title="Enable live Google Search grounding on gemini-3.8-flash"
+            title="Enable live Google Search grounding on gemini-4-hydrogen"
           >
             <Globe className="w-3.5 h-3.5" />
             <span>Search Grounding</span>
@@ -285,10 +323,15 @@ export const GeminiChatbotView: React.FC<GeminiChatbotViewProps> = ({ language }
           {/* Clear history */}
           <button
             onClick={handleClearHistory}
-            className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+            className={`px-2 py-1 text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+              confirmClear
+                ? 'bg-rose-600 text-white font-semibold'
+                : 'text-slate-400 hover:text-rose-500'
+            }`}
             title="Clear Chat History"
           >
             <Trash2 className="w-4 h-4" />
+            {confirmClear && <span>Confirm?</span>}
           </button>
         </div>
       </div>

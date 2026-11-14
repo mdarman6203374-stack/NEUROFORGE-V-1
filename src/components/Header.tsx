@@ -1,5 +1,16 @@
 import React from 'react';
-import { Sparkles, Sun, Moon, Download, Languages, LogIn, LogOut, User as UserIcon, Bot, Image as ImageIcon } from 'lucide-react';
+import {
+  Sparkles,
+  Sun,
+  Moon,
+  Download,
+  Languages,
+  LogOut,
+  Cloud,
+  HardDrive,
+  RefreshCw,
+  Terminal
+} from 'lucide-react';
 import { Language, StreakMilestone, StreakState } from '../types';
 import { StreakTracker } from './StreakTracker';
 import { useAuth } from '../firebase/authContext';
@@ -12,6 +23,8 @@ interface HeaderProps {
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   onOpenExport: () => void;
+  onOpenCloudSync: () => void;
+  onOpenApiDocs?: () => void;
   streakState: StreakState;
   onToggleTodayGoal: () => void;
   isTodayCompleted: boolean;
@@ -26,19 +39,21 @@ export const Header: React.FC<HeaderProps> = ({
   darkMode,
   setDarkMode,
   onOpenExport,
+  onOpenCloudSync,
+  onOpenApiDocs,
   streakState,
   onToggleTodayGoal,
   isTodayCompleted,
   onTriggerMilestoneCelebration
 }) => {
-  const { user, signInWithGoogle, signOut: firebaseSignOut, loading: authLoading } = useAuth();
+  const { user, dbMode, syncState, signInWithGoogle, signOut: firebaseSignOut, loading: authLoading } = useAuth();
 
   const navItems = [
     { id: 'roadmap', label: 'Roadmap' },
-    { id: 'twenty-month-plan', label: language === 'hinglish' ? '20-Month Plan' : '20-Month Plan' },
+    { id: 'twenty-month-plan', label: 'Master Plans' },
     { id: 'daily-planner', label: 'Daily Planner' },
     { id: '3d-neural', label: '3D Neural Lab' },
-    { id: 'gemini-copilot', label: 'AI Copilot' },
+    { id: 'gemini-copilot', label: '24/7 AI Tutor' },
     { id: 'image-studio', label: 'Image Studio' },
     { id: 'hindi-playlists', label: language === 'hinglish' ? 'Hindi Channels' : 'Hindi Playlists' },
     { id: 'future-projects', label: 'Future Projects' },
@@ -102,6 +117,29 @@ export const Header: React.FC<HeaderProps> = ({
             onTriggerMilestoneCelebration={onTriggerMilestoneCelebration}
             language={language}
           />
+
+          {/* Database Type & Cloud Sync Pill */}
+          <button
+            type="button"
+            onClick={onOpenCloudSync}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+            title="Configure Database Type & Cloud Sync"
+          >
+            {syncState === 'syncing' ? (
+              <RefreshCw className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+            ) : dbMode === 'firestore-cloud' && user ? (
+              <Cloud className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <HardDrive className="w-3.5 h-3.5 text-amber-500" />
+            )}
+            <span className="hidden md:inline font-mono text-[11px]">
+              {dbMode === 'firestore-cloud' && user
+                ? syncState === 'syncing'
+                  ? 'Syncing'
+                  : 'Firestore'
+                : 'Local DB'}
+            </span>
+          </button>
 
           {/* Firebase Authentication & Cloud Sync Widget */}
           {!authLoading && (
@@ -178,6 +216,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
           </button>
+
+          {/* REST API Explorer Button */}
+          {onOpenApiDocs && (
+            <button
+              type="button"
+              onClick={onOpenApiDocs}
+              className="hidden sm:flex items-center gap-1 px-2 py-1.5 text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors cursor-pointer"
+              title="Open REST API v1 Explorer & Docs"
+            >
+              <Terminal className="w-3.5 h-3.5 text-indigo-500" />
+              <span>API</span>
+            </button>
+          )}
 
           {/* Primary Action Button */}
           <button

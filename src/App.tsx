@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { RoadmapView } from './components/RoadmapView';
 import { DailySchedulerView } from './components/DailySchedulerView';
@@ -8,26 +8,47 @@ import { FutureProjectsLab } from './components/FutureProjectsLab';
 import { CareersView } from './components/CareersView';
 import { FutureOutlookView } from './components/FutureOutlookView';
 import { ProjectDetailModal } from './components/ProjectDetailModal';
-import { ExportModal } from './components/ExportModal';
+import { ExportModal, RestoredBackupPayload } from './components/ExportModal';
 import { StreakCelebrationModal } from './components/StreakCelebrationModal';
 import { GeminiChatbotView } from './components/GeminiChatbotView';
 import { ImageStudioView } from './components/ImageStudioView';
 import { ThreeNeuralVisualizer } from './components/ThreeNeuralVisualizer';
+import { CloudSyncModal } from './components/CloudSyncModal';
+import { FloatingAiTutor } from './components/FloatingAiTutor';
+import { ApiDocsModal } from './components/ApiDocsModal';
 import { useAuth } from './firebase/authContext';
-import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState } from './types';
+import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
   STREAK_MILESTONES,
   getMatchedMilestone,
   playMilestoneFanfare,
   fireMilestoneConfetti
 } from './data/streakData';
-import { Sparkles, Youtube, Calendar, Briefcase, TrendingUp, Code2 } from 'lucide-react';
+import { ROADMAP_PHASES } from './data/roadmapData';
+import { generateDailySchedule } from './data/dailyScheduleData';
+import { sendGentleStudyNotification } from './utils/studyNotifications';
+import { BellRing, X } from 'lucide-react';
+
+const DEFAULT_REMINDER_CONFIG: StudyReminderConfig = {
+  enabled: false,
+  time: '20:00',
+  daysOfWeek: [1, 2, 3, 4, 5, 6, 0],
+  gentleTone: true
+};
 
 export default function App() {
-  const { user, saveProgress, loadProgress } = useAuth();
+  const { user, dbMode, saveProgress, loadProgress, subscribeProgress } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('twenty-month-plan');
   const [language, setLanguage] = useState<Language>('hinglish');
-  const [pace, setPace] = useState<SchedulePace>('20-months');
+  const [pace, setPace] = useState<SchedulePace>(() => {
+    try {
+      const saved = localStorage.getItem('ai_mastery_pace');
+      return (saved as SchedulePace) || '20-months';
+    } catch {
+      return '20-months';
+    }
+  });
+  const [selectedPlannerDay, setSelectedPlannerDay] = useState<number>(1);
 
   // Persistence for user progress
   const [completedConcepts, setCompletedConcepts] = useState<string[]>(() => {
@@ -76,8 +97,19 @@ export default function App() {
     }
   });
 
+  const [reminderConfig, setReminderConfig] = useState<StudyReminderConfig>(() => {
+    try {
+      const saved = localStorage.getItem('ai_mastery_study_reminder');
+      if (saved) return { ...DEFAULT_REMINDER_CONFIG, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_REMINDER_CONFIG;
+  });
+
+  const [inAppReminderToast, setInAppReminderToast] = useState<{ title: string; body: string } | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectDetails | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState<boolean>(false);
+  const [isApiDocsOpen, setIsApiDocsOpen] = useState<boolean>(false);
 
   // Sync dark mode class with root html element
   useEffect(() => {
@@ -91,7 +123,19 @@ export default function App() {
     } catch {}
   }, [darkMode]);
 
-  // Persist concepts, days, and streak
+  // Persist pace, concepts, days, streak, and study reminder
+  useEffect(() => {
+    try {
+      localStorage.setItem('ai_mastery_pace', pace);
+    } catch {}
+  }, [pace]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ai_mastery_study_reminder', JSON.stringify(reminderConfig));
+    } catch {}
+  }, [reminderConfig]);
+
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -113,42 +157,228 @@ export default function App() {
     } catch {}
   }, [streakState]);
 
-  // Load user progress from Firestore when authenticated
+  // Background ticker checking every 20s if Daily Study Reminder should fire via Notification API
   useEffect(() => {
-    if (user) {
-      loadProgress().then((remoteData) => {
-        if (remoteData) {
-          if (remoteData.completedConcepts && remoteData.completedConcepts.length > 0) {
-            setCompletedConcepts(remoteData.completedConcepts);
-          }
-          if (remoteData.completedDays && remoteData.completedDays.length > 0) {
-            setCompletedDays(remoteData.completedDays);
-          }
-          if (remoteData.currentStreak !== undefined) {
-            setStreakState((prev) => ({
-              ...prev,
-              currentStreak: remoteData.currentStreak ?? prev.currentStreak,
-              longestStreak: remoteData.longestStreak ?? prev.longestStreak,
-              lastCompletedDate: remoteData.lastCompletedDate ?? prev.lastCompletedDate,
-            }));
-          }
-        }
-      });
-    }
-  }, [user]);
+    if (!reminderConfig.enabled) return;
 
-  // Sync to Firestore whenever progress state changes
+    const checkScheduleReminder = () => {
+      const now = new Date();
+      const currentDayOfWeek = now.getDay();
+      if (!reminderConfig.daysOfWeek.includes(currentDayOfWeek)) return;
+
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const currentHHMM = `${hh}:${mm}`;
+      const todayKey = now.toISOString().split('T')[0];
+
+      if (currentHHMM === reminderConfig.time && reminderConfig.lastNotifiedDate !== todayKey) {
+        const schedule = generateDailySchedule(pace);
+        const nextTask = schedule.find((t) => !completedDays.includes(t.dayNumber)) || schedule[0];
+
+        const dispatchResult = sendGentleStudyNotification({
+          dayNumber: nextTask.dayNumber,
+          taskTitle: nextTask.title,
+          hinglishTitle: nextTask.hinglishTitle,
+          durationMins: nextTask.durationMins,
+          language
+        });
+
+        setInAppReminderToast({ title: dispatchResult.title, body: dispatchResult.body });
+        setReminderConfig((prev) => ({
+          ...prev,
+          lastNotifiedDate: todayKey
+        }));
+      }
+    };
+
+    checkScheduleReminder();
+    const timer = window.setInterval(checkScheduleReminder, 20000);
+    return () => window.clearInterval(timer);
+  }, [reminderConfig, pace, completedDays, language]);
+
+  const lastCloudFingerprintRef = useRef<string>('');
+  const syncTimerRef = useRef<number | null>(null);
+
+  const computeProgressFingerprint = (payload: {
+    completedConcepts: string[];
+    completedDays: number[];
+    pace: SchedulePace;
+    currentStreak: number;
+    longestStreak: number;
+    lastCompletedDate: string;
+    reminderConfig: StudyReminderConfig;
+  }) =>
+    JSON.stringify({
+      c: [...payload.completedConcepts].sort(),
+      d: [...payload.completedDays].sort((a, b) => a - b),
+      p: payload.pace,
+      cs: payload.currentStreak,
+      ls: payload.longestStreak,
+      lc: payload.lastCompletedDate,
+      r: {
+        e: Boolean(payload.reminderConfig.enabled),
+        t: payload.reminderConfig.time,
+        days: [...(payload.reminderConfig.daysOfWeek || [])].sort((a, b) => a - b),
+        ln: payload.reminderConfig.lastNotifiedDate || '',
+        g: Boolean(payload.reminderConfig.gentleTone)
+      }
+    });
+
+  // Load and subscribe in real time to user progress from Firestore when authenticated
   useEffect(() => {
-    if (user) {
+    const applyRemote = (remoteData: any) => {
+      if (!remoteData) return;
+
+      const nextConcepts: string[] = Array.isArray(remoteData.completedConcepts)
+        ? remoteData.completedConcepts
+        : completedConcepts;
+      const nextDays: number[] = Array.isArray(remoteData.completedDays)
+        ? remoteData.completedDays
+        : completedDays;
+      const nextPace: SchedulePace = (remoteData.preferredPace as SchedulePace) || pace;
+      const nextReminder: StudyReminderConfig = remoteData.studyReminder
+        ? { ...reminderConfig, ...remoteData.studyReminder }
+        : reminderConfig;
+      const nextCurrentStreak =
+        remoteData.currentStreak !== undefined ? remoteData.currentStreak : streakState.currentStreak;
+      const nextLongestStreak =
+        remoteData.longestStreak !== undefined ? remoteData.longestStreak : streakState.longestStreak;
+      const nextLastCompletedDate =
+        remoteData.lastCompletedDate !== undefined
+          ? remoteData.lastCompletedDate
+          : streakState.lastCompletedDate;
+
+      const incomingFp = computeProgressFingerprint({
+        completedConcepts: nextConcepts,
+        completedDays: nextDays,
+        pace: nextPace,
+        currentStreak: nextCurrentStreak,
+        longestStreak: nextLongestStreak,
+        lastCompletedDate: nextLastCompletedDate,
+        reminderConfig: nextReminder
+      });
+
+      // Record cloud snapshot fingerprint BEFORE updating state so write effect does not echo back
+      if (incomingFp === lastCloudFingerprintRef.current) {
+        return;
+      }
+      lastCloudFingerprintRef.current = incomingFp;
+
+      if (Array.isArray(remoteData.completedConcepts) && remoteData.completedConcepts.length > 0) {
+        setCompletedConcepts((prev) =>
+          JSON.stringify([...prev].sort()) === JSON.stringify([...nextConcepts].sort()) ? prev : nextConcepts
+        );
+      }
+      if (Array.isArray(remoteData.completedDays) && remoteData.completedDays.length > 0) {
+        setCompletedDays((prev) =>
+          JSON.stringify([...prev].sort((a, b) => a - b)) ===
+          JSON.stringify([...nextDays].sort((a, b) => a - b))
+            ? prev
+            : nextDays
+        );
+      }
+      if (remoteData.preferredPace && remoteData.preferredPace !== pace) {
+        setPace(nextPace);
+      }
+      if (remoteData.studyReminder) {
+        setReminderConfig((prev) => {
+          const merged = { ...prev, ...remoteData.studyReminder };
+          return JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged;
+        });
+      }
+      if (remoteData.currentStreak !== undefined) {
+        setStreakState((prev) => {
+          if (
+            prev.currentStreak === nextCurrentStreak &&
+            prev.longestStreak === nextLongestStreak &&
+            prev.lastCompletedDate === nextLastCompletedDate
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            currentStreak: nextCurrentStreak,
+            longestStreak: nextLongestStreak,
+            lastCompletedDate: nextLastCompletedDate
+          };
+        });
+      }
+    };
+
+    if (user && dbMode === 'firestore-cloud') {
+      loadProgress().then(applyRemote).catch(() => {});
+      const unsub = subscribeProgress(applyRemote);
+      return () => unsub();
+    }
+  }, [user, dbMode]);
+
+  // Debounced sync to Firestore whenever local progress actually diverges from last cloud snapshot
+  useEffect(() => {
+    if (!user || dbMode !== 'firestore-cloud') return;
+
+    const currentFp = computeProgressFingerprint({
+      completedConcepts,
+      completedDays,
+      pace,
+      currentStreak: streakState.currentStreak,
+      longestStreak: streakState.longestStreak,
+      lastCompletedDate: streakState.lastCompletedDate,
+      reminderConfig
+    });
+
+    if (currentFp === lastCloudFingerprintRef.current) {
+      return;
+    }
+
+    if (syncTimerRef.current) {
+      window.clearTimeout(syncTimerRef.current);
+    }
+
+    syncTimerRef.current = window.setTimeout(() => {
+      lastCloudFingerprintRef.current = currentFp;
       saveProgress({
         completedConcepts,
         completedDays,
         currentStreak: streakState.currentStreak,
         longestStreak: streakState.longestStreak,
         lastCompletedDate: streakState.lastCompletedDate,
+        preferredPace: pace,
+        studyReminder: reminderConfig
+      }).catch((err) => {
+        console.warn('Background Firestore sync skipped:', err?.message || err);
       });
-    }
-  }, [completedConcepts, completedDays, streakState, user]);
+    }, 450);
+
+    return () => {
+      if (syncTimerRef.current) {
+        window.clearTimeout(syncTimerRef.current);
+      }
+    };
+  }, [completedConcepts, completedDays, streakState, pace, reminderConfig, user, dbMode]);
+
+  const totalConceptsCount = ROADMAP_PHASES.flatMap((p) => p.concepts).length;
+
+  const learnerContext: LearnerTutorContext = {
+    language,
+    pace,
+    completedConceptsCount: completedConcepts.length,
+    totalConceptsCount,
+    completedDaysCount: completedDays.length,
+    currentStreak: streakState.currentStreak,
+    activeTab
+  };
+
+  const handleManualSyncNow = async () => {
+    await saveProgress({
+      completedConcepts,
+      completedDays,
+      currentStreak: streakState.currentStreak,
+      longestStreak: streakState.longestStreak,
+      lastCompletedDate: streakState.lastCompletedDate,
+      preferredPace: pace,
+      studyReminder: reminderConfig
+    });
+  };
 
   const toggleConcept = (id: string) => {
     if (completedConcepts.includes(id)) {
@@ -254,6 +484,8 @@ export default function App() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
+        onOpenApiDocs={() => setIsApiDocsOpen(true)}
         streakState={streakState}
         onToggleTodayGoal={handleToggleTodayGoal}
         isTodayCompleted={isTodayCompleted}
@@ -275,8 +507,13 @@ export default function App() {
         {activeTab === 'twenty-month-plan' && (
           <TwentyMonthMasterPlanView
             language={language}
-            onNavigateToDay={(dayNumber) => {
-              setPace('20-months');
+            pace={pace}
+            onSelectPace={setPace}
+            onNavigateToDay={(dayNumber, targetPace) => {
+              if (targetPace) {
+                setPace(targetPace);
+              }
+              setSelectedPlannerDay(dayNumber);
               setActiveTab('daily-planner');
             }}
           />
@@ -289,6 +526,10 @@ export default function App() {
             completedDays={completedDays}
             toggleDay={toggleDay}
             language={language}
+            initialDay={selectedPlannerDay}
+            reminderConfig={reminderConfig}
+            setReminderConfig={setReminderConfig}
+            onShowInAppReminder={(title, body) => setInAppReminderToast({ title, body })}
           />
         )}
 
@@ -297,7 +538,7 @@ export default function App() {
         )}
 
         {activeTab === 'gemini-copilot' && (
-          <GeminiChatbotView language={language} />
+          <GeminiChatbotView language={language} learnerContext={learnerContext} />
         )}
 
         {activeTab === 'image-studio' && (
@@ -346,7 +587,7 @@ export default function App() {
               onClick={() => setActiveTab('twenty-month-plan')}
               className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
             >
-              20-Month Plan
+              Master Plans
             </button>
             <button
               onClick={() => setActiveTab('daily-planner')}
@@ -364,7 +605,7 @@ export default function App() {
               onClick={() => setActiveTab('gemini-copilot')}
               className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
             >
-              AI Copilot
+              24/7 AI Tutor
             </button>
             <button
               onClick={() => setActiveTab('image-studio')}
@@ -390,6 +631,12 @@ export default function App() {
             >
               Career Guide
             </button>
+            <button
+              onClick={() => setIsApiDocsOpen(true)}
+              className="hover:text-indigo-600 dark:hover:text-indigo-400 font-mono font-semibold transition-colors cursor-pointer"
+            >
+              REST API v1
+            </button>
           </div>
         </div>
       </footer>
@@ -408,7 +655,51 @@ export default function App() {
         completedConcepts={completedConcepts}
         completedDays={completedDays}
         language={language}
+        streakState={streakState}
+        reminderConfig={reminderConfig}
+        userEmail={user?.email || null}
+        onRestoreBackup={(restored: RestoredBackupPayload) => {
+          setPace(restored.pace);
+          setLanguage(restored.language);
+          setCompletedConcepts(restored.completedConcepts);
+          setCompletedDays(restored.completedDays);
+          if (restored.streakState) {
+            setStreakState(restored.streakState);
+          }
+          if (restored.reminderConfig) {
+            setReminderConfig((prev) => ({ ...prev, ...restored.reminderConfig }));
+          }
+        }}
       />
+
+      {/* Database Type & Real-time Cloud Sync Modal */}
+      <CloudSyncModal
+        isOpen={isCloudSyncModalOpen}
+        onClose={() => setIsCloudSyncModalOpen(false)}
+        language={language}
+        completedConceptsCount={completedConcepts.length}
+        completedDaysCount={completedDays.length}
+        currentStreak={streakState.currentStreak}
+        onSyncNow={handleManualSyncNow}
+        onOpenExportBackup={() => setIsExportModalOpen(true)}
+      />
+
+      {/* Interactive REST API v1 Explorer */}
+      <ApiDocsModal
+        isOpen={isApiDocsOpen}
+        onClose={() => setIsApiDocsOpen(false)}
+        pace={pace}
+        completedConcepts={completedConcepts}
+        completedDays={completedDays}
+      />
+
+      {/* Persistent Always-On 24/7 AI Tutor Drawer (available outside full tutor tab) */}
+      {activeTab !== 'gemini-copilot' && (
+        <FloatingAiTutor
+          learnerContext={learnerContext}
+          onOpenFullTutor={() => setActiveTab('gemini-copilot')}
+        />
+      )}
 
       {/* Streak Milestone Celebration Modal */}
       <StreakCelebrationModal
@@ -416,6 +707,41 @@ export default function App() {
         onClose={() => setActiveMilestoneCelebration(null)}
         language={language}
       />
+
+      {/* Gentle In-App Study Reminder Toast */}
+      {inAppReminderToast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <BellRing className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
+              {inAppReminderToast.title}
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              {inAppReminderToast.body}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('daily-planner');
+                setInAppReminderToast(null);
+              }}
+              className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              Open Daily Study Planner →
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setInAppReminderToast(null)}
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            aria-label="Dismiss reminder"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

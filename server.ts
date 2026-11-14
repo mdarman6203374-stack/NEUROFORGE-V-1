@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { v1Router, API_ENDPOINTS_CATALOG } from './src/api/v1Router';
 
 dotenv.config();
 
@@ -14,6 +15,17 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '35mb' }));
+
+// Mount versioned REST API v1 and discovery index
+app.use('/api/v1', v1Router);
+app.get('/api', (_req: Request, res: Response) => {
+  res.json({
+    name: 'NeuroForge AI Engineering Mastery API',
+    version: '1.0.0',
+    v1Base: '/api/v1',
+    endpoints: API_ENDPOINTS_CATALOG,
+  });
+});
 
 // Initialize shared Gemini SDK client with User-Agent header as required by skill
 const ai = new GoogleGenAI({
@@ -37,15 +49,16 @@ Guidelines:
 5. Emphasize first-principles understanding, avoiding superficial hand-waving.`;
 
 /**
- * Multi-Turn Chatbot API with Search Grounding & Role Support
+ * 24/7 AI Tutor & Multi-Turn Mentor API (gemini-4-hydrogen + automatic fallback to gemini-3.1-flash-lite)
  */
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const {
       messages, // Array of { role: 'user' | 'model', content: string }
-      model = 'gemini-3.8-flash',
+      model = 'gemini-4-hydrogen',
       enableSearchGrounding = false,
-      userRole = 'general'
+      userRole = 'socratic-tutor',
+      learnerContext = null,
     } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -53,42 +66,100 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       return;
     }
 
-    // Determine targeted model name based on user request or complexity
+    // Use free-tier-compatible active models by default
     let selectedModel = model;
-    if (selectedModel !== 'gemini-4-argon' && selectedModel !== 'gemini-3.1-flash-lite') {
-      selectedModel = 'gemini-3.8-flash';
+    if (
+      selectedModel !== 'gemini-4-hydrogen' &&
+      selectedModel !== 'gemini-3.1-flash-lite'
+    ) {
+      selectedModel = 'gemini-4-hydrogen';
     }
 
     // Role-specific custom prompt augmentation
     let roleSystemInstruction = SYSTEM_INSTRUCTION;
-    if (userRole === 'interview-coach') {
+    if (userRole === 'socratic-tutor') {
+      roleSystemInstruction += `\nRole Focus: 24/7 Personal AI Tutor. Explain step-by-step from intuition to equations & runnable code. End explanations with a quick comprehension check or next micro-exercise so the student learns actively anytime day or night.`;
+    } else if (userRole === 'interview-coach') {
       roleSystemInstruction += `\nRole Focus: Technical Interviewer. Grill the student on AI Engineering concepts, ask follow-up questions on trade-offs (e.g. latency vs. quality, quantization loss, attention complexity), and critique their answers constructively.`;
     } else if (userRole === 'code-architect') {
       roleSystemInstruction += `\nRole Focus: System & Code Architect. Focus on robust production code, scalable architecture diagrams (ASCII/Markdown), latency optimization, and memory constraints.`;
     }
 
+    if (learnerContext && typeof learnerContext === 'object') {
+      roleSystemInstruction += `\n\nStudent Progress Context:\n- Preferred Language: ${learnerContext.language || 'hinglish'}\n- Active Study Timeline: ${learnerContext.pace || '20-months'}\n- Completed Concepts: ${learnerContext.completedConceptsCount ?? 0} / ${learnerContext.totalConceptsCount ?? 0}\n- Completed Days: ${learnerContext.completedDaysCount ?? 0}\n- Current Streak: ${learnerContext.currentStreak ?? 0} days`;
+    }
+
     // Build contents history for multi-turn chat
     const contents = messages.map((m: { role: string; content: string }) => ({
       role: m.role === 'model' ? 'model' : 'user',
-      parts: [{ text: m.content }],
+      parts: [{ text: String(m.content || '') }],
     }));
 
-    // Configure tools: search grounding is supported on gemini-3.8-flash
-    const config: any = {
-      systemInstruction: roleSystemInstruction,
-    };
-
-    if (enableSearchGrounding && selectedModel === 'gemini-3.8-flash') {
-      config.tools = [{ googleSearch: {} }];
+    // Attempt sequence avoids search-grounding quota blockers while preserving best available model
+    const attempts: Array<{ modelName: string; useSearch: boolean }> = [];
+    if (enableSearchGrounding && selectedModel === 'gemini-4-hydrogen') {
+      attempts.push({ modelName: 'gemini-4-hydrogen', useSearch: true });
+    }
+    attempts.push({ modelName: selectedModel, useSearch: false });
+    if (selectedModel !== 'gemini-3.1-flash-lite') {
+      attempts.push({ modelName: 'gemini-3.1-flash-lite', useSearch: false });
+    } else {
+      attempts.push({ modelName: 'gemini-4-hydrogen', useSearch: false });
     }
 
-    const response = await ai.models.generateContent({
-      model: selectedModel,
-      contents,
-      config,
-    });
+    let response: any = null;
+    let modelUsed = selectedModel;
+    let lastError: any = null;
 
-    const replyText = response.text || '';
+    for (const attempt of attempts) {
+      try {
+        const config: any = {
+          systemInstruction: roleSystemInstruction,
+        };
+        if (attempt.useSearch) {
+          config.tools = [{ googleSearch: {} }];
+        }
+
+        response = await ai.models.generateContent({
+          model: attempt.modelName,
+          contents,
+          config,
+        });
+        modelUsed = attempt.modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err || '');
+        const isQuotaOrRate = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+        console.warn(
+          `Gemini attempt failed (${attempt.modelName}, search=${attempt.useSearch}):`,
+          isQuotaOrRate ? '429 RESOURCE_EXHAUSTED' : msg
+        );
+        // Brief pause before next fallback attempt
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (!response) {
+      const errMsg = String(lastError?.message || 'Gemini API request failed');
+      const isQuota = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        res.status(429).json({
+          error:
+            'Gemini API rate limit or free-tier quota was reached. Please wait a few seconds and retry, or configure a billing-enabled API key in Settings > Secrets.',
+          code: 'RESOURCE_EXHAUSTED',
+        });
+        return;
+      }
+      res.status(502).json({
+        error: 'Unable to get a response from the AI Tutor right now. Please try again in a moment.',
+      });
+      return;
+    }
+
+    const replyText =
+      response.text ||
+      'Hello! I am online and ready to help. What AI or ML topic should we explore right now?';
 
     // Extract search grounding sources if present
     const sources: Array<{ title: string; url: string }> = [];
@@ -106,7 +177,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     res.json({
       reply: replyText,
-      modelUsed: selectedModel,
+      modelUsed,
       sources,
     });
   } catch (error: any) {
@@ -272,6 +343,89 @@ app.post('/api/animate-video', async (req: Request, res: Response) => {
     res.status(500).json({
       error: error.message || 'Failed to animate video with gemini-omni-1.2-flash',
     });
+  }
+});
+
+/**
+ * Backend Progress Backup Snapshot API
+ * Generates a structured JSON snapshot with integrity metadata and validates imported backups
+ */
+app.post('/api/backup/create', (req: Request, res: Response) => {
+  try {
+    const {
+      pace = '20-months',
+      completedConcepts = [],
+      completedDays = [],
+      streakState = null,
+      reminderConfig = null,
+      language = 'hinglish',
+      userEmail = null,
+    } = req.body || {};
+
+    if (!Array.isArray(completedConcepts) || !Array.isArray(completedDays)) {
+      res.status(400).json({ error: 'Invalid progress arrays in backup payload' });
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const payload = {
+      app: 'NeuroForge AI Engineering Mastery OS',
+      schemaVersion: 2,
+      createdAt,
+      storageBackend: 'firebase-firestore',
+      userEmail,
+      data: {
+        pace,
+        language,
+        completedConcepts: Array.from(new Set(completedConcepts.map(String))),
+        completedDays: Array.from(new Set(completedDays.map(Number).filter((n: number) => Number.isFinite(n)))),
+        streakState,
+        reminderConfig,
+      },
+    };
+
+    res.json({
+      ok: true,
+      backup: payload,
+      stats: {
+        conceptsCount: payload.data.completedConcepts.length,
+        daysCount: payload.data.completedDays.length,
+        createdAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('Backup creation failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to create backup snapshot' });
+  }
+});
+
+app.post('/api/backup/validate', (req: Request, res: Response) => {
+  try {
+    const candidate = req.body?.backup ?? req.body;
+    const data = candidate?.data ?? candidate;
+
+    if (!data || !Array.isArray(data.completedConcepts) || !Array.isArray(data.completedDays)) {
+      res.status(400).json({ valid: false, error: 'Backup file missing completedConcepts or completedDays arrays' });
+      return;
+    }
+
+    const sanitized = {
+      pace: typeof data.pace === 'string' ? data.pace : '20-months',
+      language: data.language === 'english' ? 'english' : 'hinglish',
+      completedConcepts: Array.from(new Set(data.completedConcepts.map(String))),
+      completedDays: Array.from(
+        new Set(data.completedDays.map(Number).filter((n: number) => Number.isFinite(n) && n >= 1))
+      ),
+      streakState: data.streakState && typeof data.streakState === 'object' ? data.streakState : null,
+      reminderConfig: data.reminderConfig && typeof data.reminderConfig === 'object' ? data.reminderConfig : null,
+    };
+
+    res.json({
+      valid: true,
+      data: sanitized,
+    });
+  } catch (error: any) {
+    res.status(400).json({ valid: false, error: error.message || 'Invalid backup format' });
   }
 });
 

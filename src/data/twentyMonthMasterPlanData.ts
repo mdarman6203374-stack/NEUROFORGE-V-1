@@ -302,3 +302,119 @@ export const TWENTY_MONTH_MASTER_PLAN: MonthMilestone[] = [
     totalStudyHours: 60
   }
 ];
+
+export interface TimelineTrackConfig {
+  months: 20 | 16 | 14 | 12;
+  paceId: '20-months' | '16-months' | '14-months' | '12-months';
+  label: string;
+  shortLabel: string;
+  totalDays: number;
+  dailyHoursLabel: string;
+  dailyMins: number;
+  hoursPerMonth: number;
+  tag: string;
+  description: string;
+  hinglishDesc: string;
+}
+
+export const TIMELINE_TRACK_CONFIGS: TimelineTrackConfig[] = [
+  {
+    months: 20,
+    paceId: '20-months',
+    label: '20-Month Steady Mastery',
+    shortLabel: '20 Months (2h/day)',
+    totalDays: 600,
+    dailyHoursLabel: '2.0 hrs / day',
+    dailyMins: 120,
+    hoursPerMonth: 60,
+    tag: 'Recommended · Zero Burnout',
+    description: 'Ideal for full-time workers & college students. Master all 1,200 hours cleanly at 2 hours/day.',
+    hinglishDesc: 'Job ya college ke saath bina stress ke daily 2 ghante dekar 20 mahine mein complete mastery.'
+  },
+  {
+    months: 16,
+    paceId: '16-months',
+    label: '16-Month Balanced Pro',
+    shortLabel: '16 Months (2.5h/day)',
+    totalDays: 480,
+    dailyHoursLabel: '2.5 hrs / day',
+    dailyMins: 150,
+    hoursPerMonth: 75,
+    tag: 'Steady Plus',
+    description: 'Slightly faster cadence finishing 4 months sooner by dedicating 2.5 focused hours per day.',
+    hinglishDesc: 'Daily 2.5 ghante padhkar 4 mahine jaldi (16 months mein) poora AI engineering syllabus khatam karein.'
+  },
+  {
+    months: 14,
+    paceId: '14-months',
+    label: '14-Month Focused Fast-Track',
+    shortLabel: '14 Months (2.9h/day)',
+    totalDays: 420,
+    dailyHoursLabel: '~2.9 hrs / day',
+    dailyMins: 170,
+    hoursPerMonth: 86,
+    tag: 'Accelerated',
+    description: 'High-momentum 14-month track compressing foundational overlap while keeping all capstones intact.',
+    hinglishDesc: 'Focused fast-track plan: roz ~2.9 ghante padhkar 14 mahine mein production AI engineer banein.'
+  },
+  {
+    months: 12,
+    paceId: '12-months',
+    label: '12-Month Career Switch',
+    shortLabel: '12 Months (3.3h/day)',
+    totalDays: 360,
+    dailyHoursLabel: '~3.3 hrs / day',
+    dailyMins: 200,
+    hoursPerMonth: 100,
+    tag: '1-Year Intensive',
+    description: 'Complete the entire 1,200-hour AI Engineering curriculum inside 1 calendar year at 100 hours/month.',
+    hinglishDesc: '1 saal (12 months) ka mission! Daily ~3.3 ghante dekar poore curriculum aur projects ko complete karein.'
+  }
+];
+
+export function generateMasterPlanForMonths(targetMonths: 20 | 16 | 14 | 12): MonthMilestone[] {
+  if (targetMonths === 20) {
+    return TWENTY_MONTH_MASTER_PLAN;
+  }
+
+  const base = TWENTY_MONTH_MASTER_PLAN;
+  const totalBase = base.length; // 20
+  const hoursPerMonth = Math.round(1200 / targetMonths);
+  const result: MonthMilestone[] = [];
+
+  for (let m = 0; m < targetMonths; m++) {
+    const startIdx = Math.floor((m * totalBase) / targetMonths);
+    const endIdx = Math.max(startIdx, Math.floor(((m + 1) * totalBase) / targetMonths) - 1);
+    const slice = base.slice(startIdx, endIdx + 1);
+    const primary = slice[0];
+    const secondary = slice.length > 1 ? slice[slice.length - 1] : null;
+
+    const mergedTitle = secondary
+      ? `${primary.title.split(':')[0]} + ${secondary.title.split(':')[0]}`
+      : primary.title;
+
+    const mergedHinglish = secondary
+      ? `${primary.hinglishTitle.split(':')[0]} + ${secondary.hinglishTitle.split(':')[0]}`
+      : primary.hinglishTitle;
+
+    const mergedSummary = slice.map((item) => item.focusSummary).join(' ');
+    const mergedDeliverables = Array.from(
+      new Set(slice.flatMap((item) => item.deliverables))
+    ).slice(0, 4);
+
+    result.push({
+      monthNumber: m + 1,
+      monthLabel: `Month ${String(m + 1).padStart(2, '0')}`,
+      phaseId: primary.phaseId,
+      phaseNumber: primary.phaseNumber,
+      title: mergedTitle,
+      hinglishTitle: mergedHinglish,
+      focusSummary: mergedSummary,
+      deliverables: mergedDeliverables,
+      totalStudyHours: hoursPerMonth
+    });
+  }
+
+  return result;
+}
+

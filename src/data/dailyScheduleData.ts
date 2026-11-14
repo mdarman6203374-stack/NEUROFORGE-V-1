@@ -666,11 +666,30 @@ export const CURATED_DAILY_CURRICULUM: Omit<DailyTask, 'dayNumber'>[] = [
 export function generateDailySchedule(pace: SchedulePace): DailyTask[] {
   const baseTasks = CURATED_DAILY_CURRICULUM;
   let targetDays = 600; // default 20-months master plan
-  if (pace === '20-months') targetDays = 600; // 20 Months Master Plan (600 days @ 2 hrs/day)
-  if (pace === '2-hours-daily') targetDays = 200; // 2 hours/day accelerated pace (~6.5 months)
-  if (pace === '6-months') targetDays = 180;
-  if (pace === '3-months') targetDays = 90;
-  if (pace === '12-months') targetDays = 365;
+  let paceMinutes = 120;
+
+  if (pace === '20-months') {
+    targetDays = 600; // 20 Months Master Plan (600 days @ 2 hrs/day)
+    paceMinutes = 120;
+  } else if (pace === '16-months') {
+    targetDays = 480; // 16 Months Track (480 days @ 2.5 hrs/day)
+    paceMinutes = 150;
+  } else if (pace === '14-months') {
+    targetDays = 420; // 14 Months Track (420 days @ ~2.9 hrs/day)
+    paceMinutes = 170;
+  } else if (pace === '12-months') {
+    targetDays = 360; // 12 Months Track (360 days @ ~3.3 hrs/day)
+    paceMinutes = 200;
+  } else if (pace === '6-months') {
+    targetDays = 180;
+    paceMinutes = 240;
+  } else if (pace === '3-months') {
+    targetDays = 90;
+    paceMinutes = 360;
+  } else if (pace === '2-hours-daily') {
+    targetDays = 200;
+    paceMinutes = 120;
+  }
 
   const result: DailyTask[] = [];
   const totalBase = baseTasks.length;
@@ -681,8 +700,6 @@ export function generateDailySchedule(pace: SchedulePace): DailyTask[] {
     const baseIndex = Math.min(Math.floor(ratio * totalBase), totalBase - 1);
     const taskDef = baseTasks[baseIndex];
 
-    const taskDuration = (pace === '20-months' || pace === '2-hours-daily') ? 120 : taskDef.durationMins;
-
     result.push({
       dayNumber: day,
       phaseId: taskDef.phaseId,
@@ -690,7 +707,7 @@ export function generateDailySchedule(pace: SchedulePace): DailyTask[] {
       title: taskDef.title,
       hinglishTitle: taskDef.hinglishTitle,
       focusArea: taskDef.focusArea,
-      durationMins: taskDuration,
+      durationMins: paceMinutes,
       learningGoal: taskDef.learningGoal,
       hinglishGoal: taskDef.hinglishGoal,
       recommendedHindiPlaylist: taskDef.recommendedHindiPlaylist,

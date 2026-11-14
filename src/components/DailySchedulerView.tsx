@@ -11,11 +11,28 @@ import {
   HelpCircle,
   Code2,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  Bell,
+  BellRing,
+  BellOff,
+  Check,
+  Play,
+  Timer
 } from 'lucide-react';
-import { SchedulePace, Language, DailyTask } from '../types';
+import { SchedulePace, Language, DailyTask, StudyReminderConfig } from '../types';
 import { generateDailySchedule } from '../data/dailyScheduleData';
-import { PomodoroTimer } from './PomodoroTimer';
+import {
+  PomodoroTimer,
+  PomodoroStartRequest,
+  FocusTaskTarget
+} from './PomodoroTimer';
+import {
+  BrowserNotificationPermission,
+  getNotificationPermission,
+  requestNotificationPermission,
+  sendGentleStudyNotification,
+  getNextReminderLabel
+} from '../utils/studyNotifications';
 import confetti from 'canvas-confetti';
 
 interface DailySchedulerViewProps {
@@ -24,18 +41,76 @@ interface DailySchedulerViewProps {
   completedDays: number[];
   toggleDay: (day: number) => void;
   language: Language;
+  initialDay?: number;
+  reminderConfig: StudyReminderConfig;
+  setReminderConfig: React.Dispatch<React.SetStateAction<StudyReminderConfig>>;
+  onShowInAppReminder?: (title: string, body: string) => void;
 }
+
+const WEEKDAYS = [
+  { label: 'S', full: 'Sun', value: 0 },
+  { label: 'M', full: 'Mon', value: 1 },
+  { label: 'T', full: 'Tue', value: 2 },
+  { label: 'W', full: 'Wed', value: 3 },
+  { label: 'T', full: 'Thu', value: 4 },
+  { label: 'F', full: 'Fri', value: 5 },
+  { label: 'S', full: 'Sat', value: 6 }
+];
+
+const PACE_OPTIONS: Array<{ id: SchedulePace; label: string; sub: string }> = [
+  { id: '20-months', label: '20 Months ★', sub: '2.0h/day' },
+  { id: '16-months', label: '16 Months', sub: '2.5h/day' },
+  { id: '14-months', label: '14 Months', sub: '2.9h/day' },
+  { id: '12-months', label: '12 Months', sub: '3.3h/day' },
+  { id: '6-months', label: '6 Months', sub: '4.0h/day' },
+  { id: '3-months', label: '3 Months', sub: '6.0h/day' }
+];
 
 export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   pace,
   setPace,
   completedDays,
   toggleDay,
-  language
+  language,
+  initialDay,
+  reminderConfig,
+  setReminderConfig,
+  onShowInAppReminder
 }) => {
   const [schedule, setSchedule] = useState<DailyTask[]>(() => generateDailySchedule(pace));
-  const [currentDay, setCurrentDay] = useState<number>(1);
+  const [currentDay, setCurrentDay] = useState<number>(initialDay || 1);
   const [showAnswer, setShowAnswer] = useState<boolean>(false);
+  const [notifPermission, setNotifPermission] = useState<BrowserNotificationPermission>(() =>
+    getNotificationPermission()
+  );
+  const [testNoticeStatus, setTestNoticeStatus] = useState<string | null>(null);
+  const [pomodoroStartRequest, setPomodoroStartRequest] = useState<PomodoroStartRequest | null>(null);
+  const [pomodoroLiveStatus, setPomodoroLiveStatus] = useState<{
+    isRunning: boolean;
+    remainingSeconds: number;
+    target: FocusTaskTarget;
+    isBreak: boolean;
+  } | null>(null);
+
+  const handleStart25MinBlock = (target: FocusTaskTarget) => {
+    setPomodoroStartRequest({
+      target,
+      preset: 'pomodoro-25',
+      nonce: Date.now()
+    });
+  };
+
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    if (initialDay && initialDay >= 1) {
+      setCurrentDay(initialDay);
+    }
+  }, [initialDay]);
 
   // Update schedule when pace changes
   useEffect(() => {
@@ -74,17 +149,96 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
     }
   };
 
+  const handleRequestNotifications = async () => {
+    const perm = await requestNotificationPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      setReminderConfig((prev) => ({ ...prev, enabled: true }));
+      const res = sendGentleStudyNotification({
+        dayNumber: activeTask.dayNumber,
+        taskTitle: activeTask.title,
+        hinglishTitle: activeTask.hinglishTitle,
+        durationMins: activeTask.durationMins,
+        language,
+        isTest: true
+      });
+      setTestNoticeStatus(
+        res.dispatchedNative
+          ? 'Browser notifications enabled! Test alert sent.'
+          : 'Schedule enabled! Note: OS popup may be suppressed inside iframe; in-app banner is active.'
+      );
+      setTimeout(() => setTestNoticeStatus(null), 4000);
+    } else if (perm === 'denied') {
+      setTestNoticeStatus('Browser blocked notifications. Enable notifications in browser site settings, or rely on in-app reminders.');
+      setTimeout(() => setTestNoticeStatus(null), 5000);
+    }
+  };
+
+  const handleToggleReminderEnabled = async () => {
+    if (!reminderConfig.enabled && notifPermission === 'default') {
+      await handleRequestNotifications();
+      return;
+    }
+    setReminderConfig((prev) => ({ ...prev, enabled: !prev.enabled }));
+  };
+
+  const handleToggleWeekday = (dayIdx: number) => {
+    setReminderConfig((prev) => {
+      const exists = prev.daysOfWeek.includes(dayIdx);
+      const nextDays = exists
+        ? prev.daysOfWeek.filter((d) => d !== dayIdx)
+        : [...prev.daysOfWeek, dayIdx].sort();
+      return { ...prev, daysOfWeek: nextDays };
+    });
+  };
+
+  const handleSendTestReminder = async () => {
+    let currentPerm = getNotificationPermission();
+    if (currentPerm === 'default') {
+      currentPerm = await requestNotificationPermission();
+      setNotifPermission(currentPerm);
+    }
+
+    const result = sendGentleStudyNotification({
+      dayNumber: activeTask.dayNumber,
+      taskTitle: activeTask.title,
+      hinglishTitle: activeTask.hinglishTitle,
+      durationMins: activeTask.durationMins,
+      language,
+      isTest: true
+    });
+
+    if (onShowInAppReminder) {
+      onShowInAppReminder(result.title, result.body);
+    }
+
+    setTestNoticeStatus(
+      result.dispatchedNative
+        ? 'Gentle browser notification sent!'
+        : `Gentle in-app reminder shown (${result.reason || 'preview fallback'})`
+    );
+    setTimeout(() => setTestNoticeStatus(null), 4000);
+  };
+
   const completedCount = completedDays.length;
   const progressPercent = Math.min(
     100,
     Math.round((completedCount / (schedule.length || 1)) * 100)
   );
 
+  // Dynamic time-box split calculation for selected pace duration
+  const totalMins = activeTask.durationMins || 120;
+  const conceptMins = Math.round(totalMins * 0.42);
+  const breakMins = totalMins >= 160 ? 15 : 10;
+  const codingMins = Math.round(totalMins * 0.42);
+  const quizMins = Math.max(10, totalMins - conceptMins - breakMins - codingMins);
+  const totalHoursFormatted = (totalMins / 60).toFixed(1).replace(/\.0$/, '');
+
   return (
-    <div className="space-y-8">
-      {/* Top Banner: Pace Selector & Streak Statistics */}
+    <div className="daily-scheduler-view space-y-8">
+      {/* Top Banner: Pace Selector (20/16/14/12/6/3 Months) & Streak Statistics */}
       <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
               <Calendar className="w-4 h-4" />
@@ -92,58 +246,35 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
               {language === 'hinglish'
-                ? 'Roadmap ke hisaab se Daily Schedule & Study Routine'
+                ? 'Target Timeline ke hisaab se Daily Study Schedule'
                 : 'Day-by-Day Study Routine & Practice Engine'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
               {language === 'hinglish'
-                ? 'Har din ka fixed schedule: 40% Concept (Hindi playlist), 40% Hands-on Coding, aur 20% Quick-Check Quiz.'
-                : 'Structured daily 3-part routine: 40% Concept video, 40% Hands-on code task, 20% Knowledge retention.'}
+                ? '20, 16, 14, 12, 6, ya 3 months track chunein — rozana ka schedule aur time-box apne aap adjust ho jayega.'
+                : 'Select your completion timeframe (20, 16, 14, 12, 6, or 3 months) — daily hours and milestones adapt automatically.'}
             </p>
           </div>
 
           {/* Interactive Pace Selector Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0">
-            <button
-              onClick={() => setPace('20-months')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                pace === '20-months'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold ring-1 ring-indigo-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              20-Month Master Plan (2h/day) ★
-            </button>
-            <button
-              onClick={() => setPace('6-months')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                pace === '6-months'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              6-Month Pro (3-4h)
-            </button>
-            <button
-              onClick={() => setPace('3-months')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                pace === '3-months'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              3-Month Sprint (6-8h)
-            </button>
-            <button
-              onClick={() => setPace('12-months')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                pace === '12-months'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              12-Month Deep (1.5h)
-            </button>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0">
+            {PACE_OPTIONS.map((opt) => {
+              const isSelected = pace === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setPace(opt.id)}
+                  className={`px-2.5 py-1.5 text-left rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold ring-1 ring-indigo-500/30'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <div className="text-xs leading-tight">{opt.label}</div>
+                  <div className="text-[10px] font-mono opacity-75">{opt.sub}</div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -195,7 +326,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Left is Day Card, Right is Focus Pomodoro Timer & Day Quick Strip */}
+      {/* Main Grid: Left is Day Card, Right is Focus Pomodoro Timer, Notification Scheduler & Day Quick Strip */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Detailed Active Day Plan */}
         <div className="lg:col-span-8 space-y-6">
@@ -244,31 +375,57 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
                   </span>
                   <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
                   <span className="text-slate-500 dark:text-slate-400 font-mono">
-                    ~{Math.round(activeTask.durationMins / 60)} Hours
+                    ~{totalHoursFormatted} Hours ({totalMins}m)
                   </span>
                 </div>
 
-                {/* Mark as complete button */}
-                <button
-                  onClick={handleToggleCurrentDay}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                    isDayCompleted
-                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                  }`}
-                >
-                  {isDayCompleted ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      <span>Completed!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Circle className="w-4 h-4" />
-                      <span>Mark Day Complete</span>
-                    </>
-                  )}
-                </button>
+                {/* Action Buttons: Start 25m Study Block + Mark Day Complete */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStart25MinBlock('concept')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                      pomodoroLiveStatus?.isRunning
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700'
+                        : 'bg-slate-900 hover:bg-slate-800 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/25 text-white dark:text-indigo-300 border-slate-800 dark:border-indigo-500/40'
+                    }`}
+                  >
+                    {pomodoroLiveStatus?.isRunning ? (
+                      <>
+                        <Timer className="w-3.5 h-3.5 animate-pulse text-indigo-600 dark:text-indigo-400" />
+                        <span className="font-mono">
+                          Focusing {formatCountdown(pomodoroLiveStatus.remainingSeconds)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Start 25m Study Block</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleToggleCurrentDay}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                      isDayCompleted
+                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                    }`}
+                  >
+                    {isDayCompleted ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <span>Completed!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Circle className="w-4 h-4" />
+                        <span>Mark Day Complete</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
@@ -276,38 +433,48 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               </h2>
             </div>
 
-            {/* 2-Hour Daily Structured Time-Box Breakdown */}
+            {/* Dynamic Structured Time-Box Breakdown with Quick 25m Pomodoro Launchers */}
             <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-200/80 dark:border-indigo-900/50 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-200">
                   <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>
                     {language === 'hinglish'
-                      ? '2-Hour Daily Time-Box Routine (Exact 120 Minutes Breakdown)'
-                      : '2-Hour Daily Time-Box Schedule (Exact 120 Mins)'}
+                      ? `${totalHoursFormatted}-Hour Daily Time-Box (${totalMins} Minutes Breakdown)`
+                      : `${totalHoursFormatted}-Hour Daily Time-Box Schedule (${totalMins} Mins)`}
                   </span>
                 </div>
                 <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
-                  2 Hours Total
+                  {totalHoursFormatted}h Total
                 </span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                    <span>00:00 - 00:50</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">50m</span>
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 flex flex-col justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      <span>BLOCK 01</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{conceptMins}m</span>
+                    </div>
+                    <div className="font-semibold text-slate-900 dark:text-white text-xs">01. Concept & Video</div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                      Hindi playlist lecture & active notes
+                    </p>
                   </div>
-                  <div className="font-semibold text-slate-900 dark:text-white text-xs">01. Concept & Video</div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                    Hindi playlist lecture & active notes
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleStart25MinBlock('concept')}
+                    className="w-full flex items-center justify-center gap-1 py-1 px-2 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Start 25m</span>
+                  </button>
                 </div>
 
                 <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-1">
                   <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                    <span>00:50 - 01:00</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">10m</span>
+                    <span>REST</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{breakMins}m</span>
                   </div>
                   <div className="font-semibold text-slate-900 dark:text-white text-xs">Active Rest Break</div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
@@ -315,31 +482,51 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
                   </p>
                 </div>
 
-                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                    <span>01:00 - 01:50</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400">50m</span>
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 flex flex-col justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      <span>BLOCK 02</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{codingMins}m</span>
+                    </div>
+                    <div className="font-semibold text-slate-900 dark:text-white text-xs">02. Code Challenge</div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                      Hands-on script in VS Code / Notebook
+                    </p>
                   </div>
-                  <div className="font-semibold text-slate-900 dark:text-white text-xs">02. Code Challenge</div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                    Hands-on script in VS Code / Notebook
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleStart25MinBlock('code')}
+                    className="w-full flex items-center justify-center gap-1 py-1 px-2 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Start 25m</span>
+                  </button>
                 </div>
 
-                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                    <span>01:50 - 02:00</span>
-                    <span className="font-bold text-purple-600 dark:text-purple-400">10m</span>
+                <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/50 flex flex-col justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      <span>BLOCK 03</span>
+                      <span className="font-bold text-purple-600 dark:text-purple-400">{quizMins}m</span>
+                    </div>
+                    <div className="font-semibold text-slate-900 dark:text-white text-xs">03. Retention Quiz</div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                      Quick-check recall & summary point
+                    </p>
                   </div>
-                  <div className="font-semibold text-slate-900 dark:text-white text-xs">03. Retention Quiz</div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                    Quick-check recall & summary point
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleStart25MinBlock('quiz')}
+                    className="w-full flex items-center justify-center gap-1 py-1 px-2 text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 rounded-md transition-colors cursor-pointer"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Start 25m</span>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Block 1: Goal & Concept Breakdown (40% time) */}
+            {/* Block 1: Goal & Concept Breakdown */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-indigo-500" />
@@ -356,7 +543,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               )}
             </div>
 
-            {/* Block 2: Curated Hindi YouTube Video / Playlist (Direct Action) */}
+            {/* Block 2: Curated Hindi YouTube Video / Playlist */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-red-500" />
@@ -386,7 +573,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               </div>
             </div>
 
-            {/* Block 3: Hands-on Code Challenge (40% time) */}
+            {/* Block 3: Hands-on Code Challenge */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-emerald-500" />
@@ -403,7 +590,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               </div>
             </div>
 
-            {/* Block 4: Quick-Check Retention Quiz (20% time) */}
+            {/* Block 4: Quick-Check Retention Quiz */}
             <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                 <HelpCircle className="w-4 h-4 text-purple-500" />
@@ -432,12 +619,180 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Dedicated Pomodoro Study Timer + Quick Jump Strip */}
+        {/* Right Column: Browser Study Reminders + Pomodoro Timer + Quick Jump Matrix */}
         <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+          {/* Browser Notification Reminder Scheduler */}
+          <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                  {reminderConfig.enabled ? (
+                    <BellRing className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  ) : (
+                    <Bell className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>Daily Study Reminders</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {language === 'hinglish'
+                    ? 'Aapke chosen time par gentle browser notification'
+                    : 'Gentle browser Notification API alert at study time'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleReminderEnabled}
+                aria-label="Toggle daily browser reminders"
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                  reminderConfig.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                    reminderConfig.enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Schedule Time Input & Presets */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-xs">
+                <label
+                  htmlFor="study-reminder-time"
+                  className="font-semibold text-slate-700 dark:text-slate-300"
+                >
+                  Reminder Time
+                </label>
+                <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+                  {getNextReminderLabel(reminderConfig, language)}
+                </span>
+              </div>
+
+              <input
+                id="study-reminder-time"
+                type="time"
+                value={reminderConfig.time}
+                onChange={(e) =>
+                  setReminderConfig((prev) => ({
+                    ...prev,
+                    time: e.target.value || '19:30'
+                  }))
+                }
+                className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+
+              {/* Quick Time Presets */}
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                {[
+                  { label: '7:00 AM', val: '07:00' },
+                  { label: '6:30 PM', val: '18:30' },
+                  { label: '8:00 PM', val: '20:00' },
+                  { label: '9:30 PM', val: '21:30' }
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() =>
+                      setReminderConfig((prev) => ({ ...prev, time: preset.val, enabled: true }))
+                    }
+                    className={`px-2 py-1 rounded-md font-mono transition-colors cursor-pointer ${
+                      reminderConfig.time === preset.val
+                        ? 'bg-indigo-600 text-white font-semibold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Study Days Selector */}
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Repeat on Days
+              </span>
+              <div className="grid grid-cols-7 gap-1">
+                {WEEKDAYS.map((d) => {
+                  const active = reminderConfig.daysOfWeek.includes(d.value);
+                  return (
+                    <button
+                      key={d.value}
+                      type="button"
+                      onClick={() => handleToggleWeekday(d.value)}
+                      title={d.full}
+                      className={`py-1.5 text-[11px] font-mono font-bold rounded-lg transition-all cursor-pointer ${
+                        active
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Permission Action + Test Reminder Button */}
+            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {notifPermission !== 'granted' && notifPermission !== 'unsupported' && (
+                <button
+                  type="button"
+                  onClick={handleRequestNotifications}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>
+                    {notifPermission === 'denied'
+                      ? 'Notifications Blocked (Check Browser Settings)'
+                      : 'Allow Browser Notifications'}
+                  </span>
+                </button>
+              )}
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  {notifPermission === 'granted' ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Permission Granted</span>
+                    </>
+                  ) : notifPermission === 'unsupported' ? (
+                    <>
+                      <BellOff className="w-3.5 h-3.5 text-amber-500" />
+                      <span>In-App Mode</span>
+                    </>
+                  ) : (
+                    <span>Status: {notifPermission}</span>
+                  )}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleSendTestReminder}
+                  className="px-2.5 py-1.5 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  Send Test Reminder
+                </button>
+              </div>
+
+              {testNoticeStatus && (
+                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
+                  {testNoticeStatus}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Integrated Pomodoro Focus Timer */}
           <PomodoroTimer
             currentTask={activeTask}
             language={language}
+            startRequest={pomodoroStartRequest}
+            onStatusChange={setPomodoroLiveStatus}
           />
 
           {/* Quick Day Navigator Matrix */}

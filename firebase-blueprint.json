@@ -25,6 +25,8 @@
         "currentStreak": { "type": "number" },
         "longestStreak": { "type": "number" },
         "lastCompletedDate": { "type": "string", "maxLength": 32 },
+        "preferredPace": { "type": "string", "maxLength": 32 },
+        "studyReminder": { "type": "object" },
         "updatedAt": { "type": "string" }
       },
       "required": ["userId"]

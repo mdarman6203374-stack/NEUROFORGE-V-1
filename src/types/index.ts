@@ -1,6 +1,37 @@
 export type Language = 'hinglish' | 'english';
 
-export type SchedulePace = '20-months' | '2-hours-daily' | '3-months' | '6-months' | '12-months';
+export type SchedulePace =
+  | '20-months'
+  | '16-months'
+  | '14-months'
+  | '12-months'
+  | '6-months'
+  | '3-months'
+  | '2-hours-daily';
+
+export type MasterPlanMonths = 20 | 16 | 14 | 12;
+
+export type DatabaseStorageMode = 'firestore-cloud' | 'local-browser';
+
+export type SyncStatusState = 'synced' | 'syncing' | 'local-only' | 'error';
+
+export interface LearnerTutorContext {
+  language: Language;
+  pace: SchedulePace;
+  completedConceptsCount: number;
+  totalConceptsCount: number;
+  completedDaysCount: number;
+  currentStreak: number;
+  activeTab?: string;
+}
+
+export interface StudyReminderConfig {
+  enabled: boolean;
+  time: string; // 24h HH:MM format, e.g., "19:30"
+  daysOfWeek: number[]; // 0 (Sun) to 6 (Sat)
+  lastNotifiedDate?: string; // YYYY-MM-DD
+  gentleTone: boolean;
+}
 
 export interface MonthMilestone {
   monthNumber: number;
@@ -11,7 +42,7 @@ export interface MonthMilestone {
   hinglishTitle: string;
   focusSummary: string;
   deliverables: string[];
-  totalStudyHours: number; // 60 hours per month (30 days x 2h)
+  totalStudyHours: number;
 }
  
 export interface ConceptItem {

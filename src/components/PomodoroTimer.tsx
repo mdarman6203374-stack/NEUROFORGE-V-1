@@ -18,10 +18,25 @@ import {
 import { DailyTask, Language } from '../types';
 import confetti from 'canvas-confetti';
 
+export type FocusTaskTarget = 'concept' | 'code' | 'quiz';
+
+export interface PomodoroStartRequest {
+  target: FocusTaskTarget;
+  preset?: TimerPreset;
+  nonce: number;
+}
+
 interface PomodoroTimerProps {
   currentTask: DailyTask;
   language: Language;
+  startRequest?: PomodoroStartRequest | null;
   onSessionComplete?: (taskType: string, minutes: number) => void;
+  onStatusChange?: (status: {
+    isRunning: boolean;
+    remainingSeconds: number;
+    target: FocusTaskTarget;
+    isBreak: boolean;
+  }) => void;
 }
 
 export type TimerPreset = 'pomodoro-25' | 'deep-50' | 'break-10' | 'short-break-5' | 'long-break-15';
@@ -37,7 +52,9 @@ interface FocusSessionLog {
 export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   currentTask,
   language,
-  onSessionComplete
+  startRequest,
+  onSessionComplete,
+  onStatusChange
 }) => {
   // Preset durations (in seconds)
   const PRESET_DURATIONS: Record<TimerPreset, number> = {
@@ -55,8 +72,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
   // Target task block selection
-  const [selectedTaskTarget, setSelectedTaskTarget] = useState<string>('code');
-  // options: 'concept' | 'code' | 'quiz' | 'project'
+  const [selectedTaskTarget, setSelectedTaskTarget] = useState<FocusTaskTarget>('concept');
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Session history log for the current day
   const [sessionLogs, setSessionLogs] = useState<FocusSessionLog[]>(() => {
@@ -108,6 +125,33 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   };
 
+  // Respond immediately when user clicks "Start 25m Focus" from a daily task block
+  useEffect(() => {
+    if (!startRequest) return;
+    const preset: TimerPreset = startRequest.preset || 'pomodoro-25';
+    const secs = PRESET_DURATIONS[preset];
+    setSelectedTaskTarget(startRequest.target);
+    setActivePreset(preset);
+    setTotalSeconds(secs);
+    setRemainingSeconds(secs);
+    setIsRunning(true);
+    try {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch {}
+  }, [startRequest]);
+
+  // Emit live timer state back to DailySchedulerView
+  useEffect(() => {
+    if (onStatusChange) {
+      onStatusChange({
+        isRunning,
+        remainingSeconds,
+        target: selectedTaskTarget,
+        isBreak: activePreset.includes('break')
+      });
+    }
+  }, [isRunning, remainingSeconds, selectedTaskTarget, activePreset, onStatusChange]);
+
   // Timer interval loop
   useEffect(() => {
     if (isRunning) {
@@ -146,11 +190,27 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     });
 
     const isBreak = activePreset.includes('break');
+
+    // Optional native notification on Pomodoro completion when permission is granted
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
+        new window.Notification(
+          isBreak ? 'NeuroForge AI · Break Complete!' : 'NeuroForge AI · 25m Focus Complete!',
+          {
+            body: isBreak
+              ? `Ready to resume Day ${currentTask.dayNumber}: ${currentTask.title}`
+              : `Great work on Day ${currentTask.dayNumber}! Take a short break before your next block.`,
+            tag: 'neuroforge-pomodoro-complete'
+          }
+        );
+      }
+    } catch {}
+
     if (!isBreak) {
       const minutesFocused = Math.round(totalSeconds / 60);
       const newLog: FocusSessionLog = {
         id: `sess-${Date.now()}`,
-        taskTitle: currentTask.title,
+        taskTitle: `Day ${currentTask.dayNumber}: ${currentTask.title}`,
         taskType:
           selectedTaskTarget === 'concept'
             ? '01. Concept Learning'
@@ -213,19 +273,37 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const isBreakActive = activePreset.includes('break');
 
   return (
-    <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+    <div
+      ref={containerRef}
+      className={`p-6 bg-white dark:bg-slate-900 rounded-2xl border shadow-sm space-y-5 transition-colors ${
+        isRunning
+          ? 'border-indigo-400 dark:border-indigo-500 ring-1 ring-indigo-500/20'
+          : 'border-slate-200 dark:border-slate-800'
+      }`}
+    >
       {/* Header with Title and Mute Toggle */}
-      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3.5">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+            isRunning
+              ? 'bg-indigo-600 text-white animate-pulse'
+              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+          }`}>
             <Clock className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-none">
-              Task Focus Timer
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-none flex items-center gap-1.5">
+              <span>Pomodoro Focus Timer</span>
+              {isRunning && (
+                <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  LIVE
+                </span>
+              )}
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-              {language === 'hinglish' ? 'Day ke har task par focused time track karein' : 'Track deep study sessions for each daily task'}
+              {language === 'hinglish'
+                ? 'Day ke kisi bhi block par 25m focus start karein'
+                : 'Built-in 25m focus timer synced to your daily task'}
             </span>
           </div>
         </div>
@@ -238,6 +316,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> : <VolumeX className="w-4 h-4" />}
           </button>
+        </div>
+      </div>
+
+      {/* Active Task Binding Banner */}
+      <div className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/70 text-xs">
+        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-indigo-600 dark:text-indigo-400 font-bold">
+          <span>DAY {currentTask.dayNumber} ACTIVE TASK</span>
+          <span>{activePreset === 'pomodoro-25' ? '25 MIN POMODORO' : activePreset.toUpperCase()}</span>
+        </div>
+        <div className="font-semibold text-slate-900 dark:text-white truncate mt-0.5">
+          {language === 'hinglish' ? currentTask.hinglishTitle : currentTask.title}
         </div>
       </div>
 

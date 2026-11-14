@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { ROADMAP_PHASES } from '../data/roadmapData';
-import { TWENTY_MONTH_MASTER_PLAN } from '../data/twentyMonthMasterPlanData';
-import { SchedulePace, Language } from '../types';
+import { generateMasterPlanForMonths, TIMELINE_TRACK_CONFIGS } from '../data/twentyMonthMasterPlanData';
+import { SchedulePace, Language, MasterPlanMonths } from '../types';
 
 interface GeneratePdfOptions {
   pace: SchedulePace;
@@ -122,17 +122,34 @@ export const generateRoadmapPdf = (options: GeneratePdfOptions): void => {
 
   y += 29;
 
-  // --- 20-MONTH MASTER PLAN SUMMARY (IF PACE IS 20-MONTHS) ---
-  if (pace === '20-months') {
+  // --- MASTER PLAN SUMMARY (20 / 16 / 14 / 12 MONTHS) ---
+  const masterMonths: MasterPlanMonths | null =
+    pace === '20-months'
+      ? 20
+      : pace === '16-months'
+      ? 16
+      : pace === '14-months'
+      ? 14
+      : pace === '12-months'
+      ? 12
+      : null;
+
+  if (masterMonths) {
+    const planRows = generateMasterPlanForMonths(masterMonths);
+    const trackMeta = TIMELINE_TRACK_CONFIGS.find((t) => t.months === masterMonths);
     checkPageBreak(35);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text('20-MONTH MASTER PLAN TRAJECTORY (1,200 HOURS TOTAL)', marginX, y);
+    doc.text(
+      `${masterMonths}-MONTH MASTER PLAN TRAJECTORY (${trackMeta?.dailyHoursLabel?.toUpperCase() || '2 HOURS/DAY'} · 1,200 HOURS)`,
+      marginX,
+      y
+    );
     y += 5;
 
     // Table of months
-    TWENTY_MONTH_MASTER_PLAN.forEach((month, idx) => {
+    planRows.forEach((month, idx) => {
       checkPageBreak(12);
       const isEven = idx % 2 === 0;
       doc.setFillColor(isEven ? 248 : 255, isEven ? 250 : 255, isEven ? 252 : 255);
@@ -147,7 +164,7 @@ export const generateRoadmapPdf = (options: GeneratePdfOptions): void => {
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text(month.title, marginX + 24, y + 6);
+      doc.text(month.title, marginX + 24, y + 6, { maxWidth: contentWidth - 46 });
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 116, 139);
