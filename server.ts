@@ -5,8 +5,9 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, ThinkingLevel, Type } from '@google/genai';
 import { v1Router, API_ENDPOINTS_CATALOG } from './src/api/v1Router';
+import { ROADMAP_PHASES } from './src/data/roadmapData';
 
 dotenv.config();
 
@@ -184,6 +185,181 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     console.error('Gemini Chat API Error:', error);
     res.status(500).json({
       error: error.message || 'Failed to generate response from Gemini',
+    });
+  }
+});
+
+/**
+ * Concept Quick Quiz Generator API (5 MCQs for a given Roadmap Concept ID via Gemini)
+ */
+app.post('/api/quiz/generate', async (req: Request, res: Response) => {
+  try {
+    const { conceptId, language = 'english' } = req.body || {};
+
+    if (!conceptId || typeof conceptId !== 'string') {
+      res.status(400).json({ error: 'conceptId is required' });
+      return;
+    }
+
+    let matchedConcept: {
+      id: string;
+      title: string;
+      description: string;
+      hinglishDesc?: string;
+      difficulty: string;
+    } | null = null;
+    let matchedPhase: { phaseNumber: number; title: string } | null = null;
+
+    for (const phase of ROADMAP_PHASES) {
+      const found = phase.concepts.find((c) => c.id === conceptId);
+      if (found) {
+        matchedConcept = found;
+        matchedPhase = { phaseNumber: phase.phaseNumber, title: phase.title };
+        break;
+      }
+    }
+
+    if (!matchedConcept || !matchedPhase) {
+      res.status(404).json({ error: `Concept ID '${conceptId}' was not found in the roadmap.` });
+      return;
+    }
+
+    const langDirective =
+      language === 'hinglish'
+        ? 'Write clear technical questions in English with helpful intuitive explanations (optionally adding brief Hinglish clarity where natural).'
+        : 'Write crisp, interview-grade technical questions and explanations in English.';
+
+    const prompt = `Generate a 5-question multiple-choice quiz to test deep understanding of this AI Engineering concept:
+- Phase ${matchedPhase.phaseNumber}: ${matchedPhase.title}
+- Concept ID: ${matchedConcept.id}
+- Concept Title: ${matchedConcept.title}
+- Difficulty: ${matchedConcept.difficulty}
+- Core Topics: ${matchedConcept.description}
+
+Requirements:
+1. Return exactly 5 distinct multiple-choice questions ranging from core intuition to practical edge cases or engineering trade-offs.
+2. Each question must have exactly 4 plausible options and 1 unambiguous correct answer (correctIndex 0-3).
+3. Include a concise 1-2 sentence explanation for why the correct answer is right.
+4. ${langDirective}`;
+
+    const attempts: Array<{ modelName: string; useLowThinking: boolean }> = [
+      { modelName: 'gemini-4-hydrogen', useLowThinking: true },
+      { modelName: 'gemini-3.1-flash-lite', useLowThinking: false }
+    ];
+
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const attempt of attempts) {
+      try {
+        const config: any = {
+          systemInstruction:
+            'You are a Principal AI Engineering Examiner creating accurate, unambiguous 5-question technical multiple-choice quizzes in strict JSON.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    options: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    },
+                    correctIndex: { type: Type.INTEGER },
+                    explanation: { type: Type.STRING }
+                  },
+                  required: ['id', 'question', 'options', 'correctIndex', 'explanation']
+                }
+              }
+            },
+            required: ['questions']
+          }
+        };
+
+        if (attempt.useLowThinking) {
+          config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+        }
+
+        response = await ai.models.generateContent({
+          model: attempt.modelName,
+          contents: prompt,
+          config
+        });
+        modelUsed = attempt.modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Quick Quiz Gemini attempt failed (${attempt.modelName}):`, err?.message || err);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (!response) {
+      const errMsg = String(lastError?.message || 'Gemini quiz generation failed');
+      const isQuota = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        res.status(429).json({
+          error:
+            'Gemini API rate limit or free-tier quota was reached while generating the quiz. Please wait a few seconds and retry.',
+          code: 'RESOURCE_EXHAUSTED'
+        });
+        return;
+      }
+      res.status(502).json({
+        error: 'Unable to generate quiz questions from Gemini right now. Please try again.'
+      });
+      return;
+    }
+
+    const rawJson = (response.text ?? '{}').trim();
+    const parsed = JSON.parse(rawJson);
+    const rawQuestions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+
+    const normalizedQuestions = rawQuestions.slice(0, 5).map((q: any, idx: number) => {
+      const opts = Array.isArray(q?.options)
+        ? q.options.slice(0, 4).map((o: any) => String(o))
+        : [];
+      while (opts.length < 4) {
+        opts.push(`Option ${String.fromCharCode(65 + opts.length)}`);
+      }
+      const rawIdx = Number(q?.correctIndex);
+      const safeIdx = Number.isInteger(rawIdx) && rawIdx >= 0 && rawIdx <= 3 ? rawIdx : 0;
+
+      return {
+        id: String(q?.id || `q-${idx + 1}`),
+        question: String(q?.question || `Question ${idx + 1}`),
+        options: opts,
+        correctIndex: safeIdx,
+        explanation: String(
+          q?.explanation || 'Review the core concept summary in this roadmap phase.'
+        )
+      };
+    });
+
+    if (normalizedQuestions.length === 0) {
+      res.status(502).json({ error: 'Gemini returned an empty quiz payload. Please retry.' });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      conceptId: matchedConcept.id,
+      conceptTitle: matchedConcept.title,
+      phaseNumber: matchedPhase.phaseNumber,
+      phaseTitle: matchedPhase.title,
+      modelUsed,
+      questions: normalizedQuestions
+    });
+  } catch (error: any) {
+    console.error('Quick Quiz API Error:', error);
+    res.status(500).json({
+      error: error?.message || 'Failed to generate Quick Quiz from Gemini'
     });
   }
 });

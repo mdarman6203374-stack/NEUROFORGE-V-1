@@ -133,6 +133,12 @@ export const API_ENDPOINTS_CATALOG = [
   },
   {
     method: 'POST',
+    path: '/api/quiz/generate',
+    summary: 'Generate 5 Gemini multiple-choice questions for a Roadmap concept ID',
+    sample: '/api/quiz/generate'
+  },
+  {
+    method: 'POST',
     path: '/api/backup/create',
     summary: 'Generate verified JSON backup snapshot of progress & reminders',
     sample: '/api/backup/create'
