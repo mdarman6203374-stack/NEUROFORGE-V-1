@@ -9,6 +9,11 @@ import { HINDI_CHANNELS_DATA } from '../data/hindiChannelsData';
 import { CAREER_ROLES_DATA } from '../data/careerData';
 import { FUTURE_AI_TRENDS } from '../data/futureOutlookData';
 import { AMBIENT_SOUND_PRESETS, AmbientSoundId } from '../data/ambientSoundsData';
+import {
+  AI_TECH_QUOTES,
+  getDailyQuoteForDate,
+  getRandomTechQuote
+} from '../data/dailyQuotesData';
 import { MasterPlanMonths, SchedulePace } from '../types';
 
 const VALID_PACES: SchedulePace[] = [
@@ -113,6 +118,12 @@ export const API_ENDPOINTS_CATALOG = [
     path: '/api/v1/focus/session',
     summary: 'Log & evaluate a Focus Mode Pomodoro + ambient sound study session',
     sample: '/api/v1/focus/session'
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/quotes/daily',
+    summary: 'Fetch daily inspirational AI & technology quote (?random=true, ?exclude=id)',
+    sample: '/api/v1/quotes/daily'
   },
   {
     method: 'POST',
@@ -488,5 +499,23 @@ v1Router.post('/focus/session', (req: Request, res: Response) => {
       id: soundMeta.id,
       name: soundMeta.name
     }
+  });
+});
+
+v1Router.get('/quotes/daily', (req: Request, res: Response) => {
+  const isRandom = String(req.query.random || '').toLowerCase() === 'true';
+  const excludeId = typeof req.query.exclude === 'string' ? req.query.exclude.trim() : undefined;
+  const dateParam = typeof req.query.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)
+    ? req.query.date
+    : new Date().toISOString().split('T')[0];
+
+  const quote = isRandom ? getRandomTechQuote(excludeId) : getDailyQuoteForDate(dateParam);
+
+  res.json({
+    ok: true,
+    date: dateParam,
+    mode: isRandom ? 'shuffled' : 'daily',
+    totalCurated: AI_TECH_QUOTES.length,
+    quote
   });
 });

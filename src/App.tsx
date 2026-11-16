@@ -18,6 +18,8 @@ import { FloatingAiTutor } from './components/FloatingAiTutor';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { LoadingPage } from './components/LoadingPage';
 import { ScheduleQuickTabs } from './components/ScheduleQuickTabs';
+import { AchievementsView } from './components/AchievementsView';
+import { DailyQuoteBanner } from './components/DailyQuoteBanner';
 import { useAuth } from './firebase/authContext';
 import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
@@ -546,6 +548,8 @@ export default function App() {
           focusSessionActive ? 'max-w-6xl py-5 sm:py-7' : 'max-w-7xl py-8'
         }`}
       >
+        {!focusSessionActive && <DailyQuoteBanner language={language} />}
+
         {activeTab === 'roadmap' && (
           <RoadmapView
             completedConcepts={completedConcepts}
@@ -620,6 +624,16 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'achievements' && (
+          <AchievementsView
+            streakState={streakState}
+            completedConcepts={completedConcepts}
+            completedDaysCount={completedDays.length}
+            language={language}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
         {activeTab === 'careers' && (
           <CareersView language={language} />
         )}
@@ -665,6 +679,12 @@ export default function App() {
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 04 YouTube Playlists
+              </button>
+              <button
+                onClick={() => setActiveTab('achievements')}
+                className="hover:text-amber-600 dark:hover:text-amber-400 font-semibold transition-colors cursor-pointer"
+              >
+                Achievements
               </button>
               <button
                 onClick={() => setActiveTab('3d-neural')}

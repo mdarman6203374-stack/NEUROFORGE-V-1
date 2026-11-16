@@ -57,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'gemini-copilot', label: '24/7 AI Tutor' },
     { id: 'image-studio', label: 'Image Studio' },
     { id: 'future-projects', label: 'Future Projects' },
+    { id: 'achievements', label: 'Achievements' },
     { id: 'careers', label: 'Careers & Jobs' },
     { id: 'future-outlook', label: 'Future AI 2027+' }
   ];
@@ -88,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Zone 2: Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-5 text-xs font-medium">
+        <nav className="hidden xl:flex items-center gap-3.5 2xl:gap-4 text-xs font-medium overflow-x-auto no-scrollbar">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
