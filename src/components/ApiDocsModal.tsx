@@ -91,6 +91,27 @@ export const ApiDocsModal: React.FC<ApiDocsModalProps> = ({
       description: 'List standard resume or visionary future AI project blueprints.'
     },
     {
+      id: 'focus-ambient',
+      method: 'GET',
+      path: '/api/v1/focus/ambient',
+      label: 'Focus Mode Ambient Soundscapes',
+      description: 'Fetch Rain, Cafe, and White Noise soundscape presets & audio synthesis profiles.'
+    },
+    {
+      id: 'focus-session',
+      method: 'POST',
+      path: '/api/v1/focus/session',
+      label: 'Record Focus Study Session',
+      description: 'Log a Focus Mode Pomodoro + ambient sound study session and compute focus blocks.',
+      body: {
+        dayNumber: 1,
+        durationMinutes: 25,
+        targetBlock: 'concept',
+        ambientSound: 'rain',
+        pace
+      }
+    },
+    {
       id: 'careers',
       method: 'GET',
       path: '/api/v1/careers',

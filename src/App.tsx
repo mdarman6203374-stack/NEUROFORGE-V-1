@@ -16,6 +16,7 @@ import { ThreeNeuralVisualizer } from './components/ThreeNeuralVisualizer';
 import { CloudSyncModal } from './components/CloudSyncModal';
 import { FloatingAiTutor } from './components/FloatingAiTutor';
 import { ApiDocsModal } from './components/ApiDocsModal';
+import { LoadingPage } from './components/LoadingPage';
 import { useAuth } from './firebase/authContext';
 import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
@@ -37,7 +38,8 @@ const DEFAULT_REMINDER_CONFIG: StudyReminderConfig = {
 };
 
 export default function App() {
-  const { user, dbMode, saveProgress, loadProgress, subscribeProgress } = useAuth();
+  const { user, loading: isAuthLoading, dbMode, saveProgress, loadProgress, subscribeProgress } = useAuth();
+  const [showLoadingScreen, setShowLoadingScreen] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>('twenty-month-plan');
   const [language, setLanguage] = useState<Language>('hinglish');
   const [pace, setPace] = useState<SchedulePace>(() => {
@@ -110,6 +112,25 @@ export default function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState<boolean>(false);
   const [isApiDocsOpen, setIsApiDocsOpen] = useState<boolean>(false);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+
+  // Exit Focus Mode when leaving Daily Planner or pressing Escape
+  useEffect(() => {
+    if (activeTab !== 'daily-planner' && isFocusMode) {
+      setIsFocusMode(false);
+    }
+  }, [activeTab, isFocusMode]);
+
+  useEffect(() => {
+    if (!isFocusMode) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFocusMode(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFocusMode]);
 
   // Sync dark mode class with root html element
   useEffect(() => {
@@ -473,27 +494,45 @@ export default function App() {
     }
   };
 
+  const focusSessionActive = isFocusMode && activeTab === 'daily-planner';
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col font-sans">
-      {/* Top 3-Zone Navigation Header */}
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        language={language}
-        setLanguage={setLanguage}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        onOpenExport={() => setIsExportModalOpen(true)}
-        onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
-        onOpenApiDocs={() => setIsApiDocsOpen(true)}
-        streakState={streakState}
-        onToggleTodayGoal={handleToggleTodayGoal}
-        isTodayCompleted={isTodayCompleted}
-        onTriggerMilestoneCelebration={(milestone) => setActiveMilestoneCelebration(milestone)}
-      />
+      {showLoadingScreen && (
+        <LoadingPage
+          isAuthLoading={isAuthLoading}
+          language={language}
+          completedConceptsCount={completedConcepts.length}
+          currentStreak={streakState.currentStreak}
+          onComplete={() => setShowLoadingScreen(false)}
+        />
+      )}
+
+      {/* Top 3-Zone Navigation Header (Hidden in Focus Mode) */}
+      {!focusSessionActive && (
+        <Header
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          language={language}
+          setLanguage={setLanguage}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          onOpenExport={() => setIsExportModalOpen(true)}
+          onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
+          onOpenApiDocs={() => setIsApiDocsOpen(true)}
+          streakState={streakState}
+          onToggleTodayGoal={handleToggleTodayGoal}
+          isTodayCompleted={isTodayCompleted}
+          onTriggerMilestoneCelebration={(milestone) => setActiveMilestoneCelebration(milestone)}
+        />
+      )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main
+        className={`flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 ${
+          focusSessionActive ? 'max-w-6xl py-5 sm:py-7' : 'max-w-7xl py-8'
+        }`}
+      >
         {activeTab === 'roadmap' && (
           <RoadmapView
             completedConcepts={completedConcepts}
@@ -530,6 +569,8 @@ export default function App() {
             reminderConfig={reminderConfig}
             setReminderConfig={setReminderConfig}
             onShowInAppReminder={(title, body) => setInAppReminderToast({ title, body })}
+            isFocusMode={isFocusMode}
+            onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
           />
         )}
 
@@ -565,81 +606,83 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-900 dark:text-white">
-              NeuroForge AI
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>Interactive AI Engineering Mastery OS & Copilot</span>
-          </div>
+      {/* Footer (Hidden in Focus Mode) */}
+      {!focusSessionActive && (
+        <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-900 dark:text-white">
+                NeuroForge AI
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>Interactive AI Engineering Mastery OS & Copilot</span>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-            <button
-              onClick={() => setActiveTab('roadmap')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Roadmap
-            </button>
-            <button
-              onClick={() => setActiveTab('twenty-month-plan')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Master Plans
-            </button>
-            <button
-              onClick={() => setActiveTab('daily-planner')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Daily Schedule
-            </button>
-            <button
-              onClick={() => setActiveTab('3d-neural')}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
-            >
-              3D Neural Lab
-            </button>
-            <button
-              onClick={() => setActiveTab('gemini-copilot')}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
-            >
-              24/7 AI Tutor
-            </button>
-            <button
-              onClick={() => setActiveTab('image-studio')}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
-            >
-              Image Studio
-            </button>
-            <button
-              onClick={() => setActiveTab('hindi-playlists')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Hindi YouTube
-            </button>
-            <button
-              onClick={() => setActiveTab('future-projects')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Visionary Projects
-            </button>
-            <button
-              onClick={() => setActiveTab('careers')}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              Career Guide
-            </button>
-            <button
-              onClick={() => setIsApiDocsOpen(true)}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 font-mono font-semibold transition-colors cursor-pointer"
-            >
-              REST API v1
-            </button>
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              <button
+                onClick={() => setActiveTab('roadmap')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Roadmap
+              </button>
+              <button
+                onClick={() => setActiveTab('twenty-month-plan')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Master Plans
+              </button>
+              <button
+                onClick={() => setActiveTab('daily-planner')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Daily Schedule
+              </button>
+              <button
+                onClick={() => setActiveTab('3d-neural')}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
+              >
+                3D Neural Lab
+              </button>
+              <button
+                onClick={() => setActiveTab('gemini-copilot')}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
+              >
+                24/7 AI Tutor
+              </button>
+              <button
+                onClick={() => setActiveTab('image-studio')}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
+              >
+                Image Studio
+              </button>
+              <button
+                onClick={() => setActiveTab('hindi-playlists')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Hindi YouTube
+              </button>
+              <button
+                onClick={() => setActiveTab('future-projects')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Visionary Projects
+              </button>
+              <button
+                onClick={() => setActiveTab('careers')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Career Guide
+              </button>
+              <button
+                onClick={() => setIsApiDocsOpen(true)}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-mono font-semibold transition-colors cursor-pointer"
+              >
+                REST API v1
+              </button>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* Modals */}
       <ProjectDetailModal
@@ -693,8 +736,8 @@ export default function App() {
         completedDays={completedDays}
       />
 
-      {/* Persistent Always-On 24/7 AI Tutor Drawer (available outside full tutor tab) */}
-      {activeTab !== 'gemini-copilot' && (
+      {/* Persistent Always-On 24/7 AI Tutor Drawer (hidden inside full tutor tab and Focus Mode) */}
+      {activeTab !== 'gemini-copilot' && !focusSessionActive && (
         <FloatingAiTutor
           learnerContext={learnerContext}
           onOpenFullTutor={() => setActiveTab('gemini-copilot')}

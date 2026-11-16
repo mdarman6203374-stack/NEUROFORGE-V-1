@@ -17,15 +17,20 @@ import {
   BellOff,
   Check,
   Play,
-  Timer
+  Timer,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { SchedulePace, Language, DailyTask, StudyReminderConfig } from '../types';
 import { generateDailySchedule } from '../data/dailyScheduleData';
 import {
   PomodoroTimer,
   PomodoroStartRequest,
+  PomodoroLiveStatus,
   FocusTaskTarget
 } from './PomodoroTimer';
+import { FocusModePomodoroTimer } from './FocusModePomodoroTimer';
+import { AmbientNoisePlayer } from './AmbientNoisePlayer';
 import {
   BrowserNotificationPermission,
   getNotificationPermission,
@@ -45,6 +50,8 @@ interface DailySchedulerViewProps {
   reminderConfig: StudyReminderConfig;
   setReminderConfig: React.Dispatch<React.SetStateAction<StudyReminderConfig>>;
   onShowInAppReminder?: (title: string, body: string) => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
 }
 
 const WEEKDAYS = [
@@ -75,7 +82,9 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   initialDay,
   reminderConfig,
   setReminderConfig,
-  onShowInAppReminder
+  onShowInAppReminder,
+  isFocusMode = false,
+  onToggleFocusMode
 }) => {
   const [schedule, setSchedule] = useState<DailyTask[]>(() => generateDailySchedule(pace));
   const [currentDay, setCurrentDay] = useState<number>(initialDay || 1);
@@ -85,17 +94,27 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   );
   const [testNoticeStatus, setTestNoticeStatus] = useState<string | null>(null);
   const [pomodoroStartRequest, setPomodoroStartRequest] = useState<PomodoroStartRequest | null>(null);
-  const [pomodoroLiveStatus, setPomodoroLiveStatus] = useState<{
-    isRunning: boolean;
-    remainingSeconds: number;
-    target: FocusTaskTarget;
-    isBreak: boolean;
-  } | null>(null);
+  const [pomodoroLiveStatus, setPomodoroLiveStatus] = useState<PomodoroLiveStatus | null>(null);
 
   const handleStart25MinBlock = (target: FocusTaskTarget) => {
     setPomodoroStartRequest({
       target,
       preset: 'pomodoro-25',
+      action: 'start',
+      nonce: Date.now()
+    });
+  };
+
+  const handleToggleHeaderPomodoro = () => {
+    setPomodoroStartRequest({
+      action: 'toggle',
+      nonce: Date.now()
+    });
+  };
+
+  const handleResetHeaderPomodoro = () => {
+    setPomodoroStartRequest({
+      action: 'reset',
       nonce: Date.now()
     });
   };
@@ -235,96 +254,167 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   const totalHoursFormatted = (totalMins / 60).toFixed(1).replace(/\.0$/, '');
 
   return (
-    <div className="daily-scheduler-view space-y-8">
-      {/* Top Banner: Pace Selector (20/16/14/12/6/3 Months) & Streak Statistics */}
-      <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-              <Calendar className="w-4 h-4" />
-              <span>CUSTOMIZED DAILY STUDY ENGINE</span>
+    <div className="daily-scheduler-view space-y-6 sm:space-y-8">
+      {/* Compact Focus Mode Bar when Active OR Full Pace/Metrics Banner */}
+      {isFocusMode ? (
+        <div className="px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-indigo-300 dark:border-indigo-700/70 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider rounded-lg bg-indigo-600 text-white">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              Focus Mode
+            </span>
+            <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+              <span className="font-mono font-bold text-slate-900 dark:text-white">
+                DAY {activeTask.dayNumber}/{schedule.length}
+              </span>
+              <span aria-hidden="true" className="mx-2 text-slate-400">·</span>
+              <span className="truncate">
+                {language === 'hinglish' ? activeTask.hinglishTitle : activeTask.title}
+              </span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-              {language === 'hinglish'
-                ? 'Target Timeline ke hisaab se Daily Study Schedule'
-                : 'Day-by-Day Study Routine & Practice Engine'}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              {language === 'hinglish'
-                ? '20, 16, 14, 12, 6, ya 3 months track chunein — rozana ka schedule aur time-box apne aap adjust ho jayega.'
-                : 'Select your completion timeframe (20, 16, 14, 12, 6, or 3 months) — daily hours and milestones adapt automatically.'}
-            </p>
           </div>
 
-          {/* Interactive Pace Selector Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0">
-            {PACE_OPTIONS.map((opt) => {
-              const isSelected = pace === opt.id;
-              return (
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <FocusModePomodoroTimer
+              status={pomodoroLiveStatus}
+              onToggleRun={handleToggleHeaderPomodoro}
+              onReset={handleResetHeaderPomodoro}
+              language={language}
+            />
+            {onToggleFocusMode && (
+              <button
+                type="button"
+                onClick={onToggleFocusMode}
+                aria-pressed={true}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                title="Exit distraction-free Focus Mode (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Focus Mode</span>
+                <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">(Esc)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Top Banner: Pace Selector (20/16/14/12/6/3 Months) & Streak Statistics */
+        <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                  <Calendar className="w-4 h-4" />
+                  <span>CUSTOMIZED DAILY STUDY ENGINE</span>
+                </div>
+                {onToggleFocusMode && (
+                  <button
+                    type="button"
+                    onClick={onToggleFocusMode}
+                    aria-pressed={false}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer xl:hidden"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Focus Mode</span>
+                  </button>
+                )}
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                {language === 'hinglish'
+                  ? 'Target Timeline ke hisaab se Daily Study Schedule'
+                  : 'Day-by-Day Study Routine & Practice Engine'}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                {language === 'hinglish'
+                  ? '20, 16, 14, 12, 6, ya 3 months track chunein — rozana ka schedule aur time-box apne aap adjust ho jayega.'
+                  : 'Select your completion timeframe (20, 16, 14, 12, 6, or 3 months) — daily hours and milestones adapt automatically.'}
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row xl:items-center gap-2.5 shrink-0">
+              {/* Interactive Pace Selector Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0">
+                {PACE_OPTIONS.map((opt) => {
+                  const isSelected = pace === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => setPace(opt.id)}
+                      className={`px-2.5 py-1.5 text-left rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold ring-1 ring-indigo-500/30'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs leading-tight">{opt.label}</div>
+                      <div className="text-[10px] font-mono opacity-75">{opt.sub}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {onToggleFocusMode && (
                 <button
-                  key={opt.id}
-                  onClick={() => setPace(opt.id)}
-                  className={`px-2.5 py-1.5 text-left rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                    isSelected
-                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold ring-1 ring-indigo-500/30'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                  type="button"
+                  onClick={onToggleFocusMode}
+                  aria-pressed={false}
+                  className="hidden xl:inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer shrink-0"
+                  title="Hide navigation bar, footer & distractions for deep study"
                 >
-                  <div className="text-xs leading-tight">{opt.label}</div>
-                  <div className="text-[10px] font-mono opacity-75">{opt.sub}</div>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Focus Mode</span>
                 </button>
-              );
-            })}
+              )}
+            </div>
+          </div>
+
+          {/* Metric Bar: Days completed, Streak, Progress */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Days Mastered</div>
+                <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                  {completedCount} / {schedule.length} Days
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                <Flame className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Active Streak</div>
+                <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                  {completedCount > 0 ? `${Math.min(completedCount, 7)} Days on Fire` : 'Start Today!'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                  <span>Curriculum Progress</span>
+                  <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                    {progressPercent}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Metric Bar: Days completed, Streak, Progress */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">Days Mastered</div>
-              <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
-                {completedCount} / {schedule.length} Days
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">Active Streak</div>
-              <div className="text-sm font-bold font-mono text-slate-900 dark:text-white">
-                {completedCount > 0 ? `${Math.min(completedCount, 7)} Days on Fire` : 'Start Today!'}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-                <span>Curriculum Progress</span>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  {progressPercent}%
-                </span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Main Grid: Left is Day Card, Right is Focus Pomodoro Timer, Notification Scheduler & Day Quick Strip */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -620,172 +710,174 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
         </div>
 
         {/* Right Column: Browser Study Reminders + Pomodoro Timer + Quick Jump Matrix */}
-        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-          {/* Browser Notification Reminder Scheduler */}
-          <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                  {reminderConfig.enabled ? (
-                    <BellRing className="w-4 h-4 text-emerald-500 animate-pulse" />
-                  ) : (
-                    <Bell className="w-4 h-4 text-slate-400" />
-                  )}
-                  <span>Daily Study Reminders</span>
+        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-8">
+          {/* Browser Notification Reminder Scheduler (Hidden in Focus Mode) */}
+          {!isFocusMode && (
+            <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                    {reminderConfig.enabled ? (
+                      <BellRing className="w-4 h-4 text-emerald-500 animate-pulse" />
+                    ) : (
+                      <Bell className="w-4 h-4 text-slate-400" />
+                    )}
+                    <span>Daily Study Reminders</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {language === 'hinglish'
+                      ? 'Aapke chosen time par gentle browser notification'
+                      : 'Gentle browser Notification API alert at study time'}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {language === 'hinglish'
-                    ? 'Aapke chosen time par gentle browser notification'
-                    : 'Gentle browser Notification API alert at study time'}
-                </p>
-              </div>
 
-              <button
-                type="button"
-                onClick={handleToggleReminderEnabled}
-                aria-label="Toggle daily browser reminders"
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-                  reminderConfig.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
-                    reminderConfig.enabled ? 'translate-x-5' : 'translate-x-0'
+                <button
+                  type="button"
+                  onClick={handleToggleReminderEnabled}
+                  aria-label="Toggle daily browser reminders"
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                    reminderConfig.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                   }`}
-                />
-              </button>
-            </div>
-
-            {/* Schedule Time Input & Presets */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between text-xs">
-                <label
-                  htmlFor="study-reminder-time"
-                  className="font-semibold text-slate-700 dark:text-slate-300"
                 >
-                  Reminder Time
-                </label>
-                <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
-                  {getNextReminderLabel(reminderConfig, language)}
-                </span>
-              </div>
-
-              <input
-                id="study-reminder-time"
-                type="time"
-                value={reminderConfig.time}
-                onChange={(e) =>
-                  setReminderConfig((prev) => ({
-                    ...prev,
-                    time: e.target.value || '19:30'
-                  }))
-                }
-                className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-
-              {/* Quick Time Presets */}
-              <div className="flex flex-wrap gap-1.5 text-[11px]">
-                {[
-                  { label: '7:00 AM', val: '07:00' },
-                  { label: '6:30 PM', val: '18:30' },
-                  { label: '8:00 PM', val: '20:00' },
-                  { label: '9:30 PM', val: '21:30' }
-                ].map((preset) => (
-                  <button
-                    key={preset.val}
-                    type="button"
-                    onClick={() =>
-                      setReminderConfig((prev) => ({ ...prev, time: preset.val, enabled: true }))
-                    }
-                    className={`px-2 py-1 rounded-md font-mono transition-colors cursor-pointer ${
-                      reminderConfig.time === preset.val
-                        ? 'bg-indigo-600 text-white font-semibold'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition duration-200 ${
+                      reminderConfig.enabled ? 'translate-x-5' : 'translate-x-0'
                     }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+                  />
+                </button>
               </div>
-            </div>
 
-            {/* Study Days Selector */}
-            <div className="space-y-1.5">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                Repeat on Days
-              </span>
-              <div className="grid grid-cols-7 gap-1">
-                {WEEKDAYS.map((d) => {
-                  const active = reminderConfig.daysOfWeek.includes(d.value);
-                  return (
+              {/* Schedule Time Input & Presets */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <label
+                    htmlFor="study-reminder-time"
+                    className="font-semibold text-slate-700 dark:text-slate-300"
+                  >
+                    Reminder Time
+                  </label>
+                  <span className="font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+                    {getNextReminderLabel(reminderConfig, language)}
+                  </span>
+                </div>
+
+                <input
+                  id="study-reminder-time"
+                  type="time"
+                  value={reminderConfig.time}
+                  onChange={(e) =>
+                    setReminderConfig((prev) => ({
+                      ...prev,
+                      time: e.target.value || '19:30'
+                    }))
+                  }
+                  className="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+
+                {/* Quick Time Presets */}
+                <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  {[
+                    { label: '7:00 AM', val: '07:00' },
+                    { label: '6:30 PM', val: '18:30' },
+                    { label: '8:00 PM', val: '20:00' },
+                    { label: '9:30 PM', val: '21:30' }
+                  ].map((preset) => (
                     <button
-                      key={d.value}
+                      key={preset.val}
                       type="button"
-                      onClick={() => handleToggleWeekday(d.value)}
-                      title={d.full}
-                      className={`py-1.5 text-[11px] font-mono font-bold rounded-lg transition-all cursor-pointer ${
-                        active
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      onClick={() =>
+                        setReminderConfig((prev) => ({ ...prev, time: preset.val, enabled: true }))
+                      }
+                      className={`px-2 py-1 rounded-md font-mono transition-colors cursor-pointer ${
+                        reminderConfig.time === preset.val
+                          ? 'bg-indigo-600 text-white font-semibold'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
-                      {d.label}
+                      {preset.label}
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Permission Action + Test Reminder Button */}
-            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              {notifPermission !== 'granted' && notifPermission !== 'unsupported' && (
-                <button
-                  type="button"
-                  onClick={handleRequestNotifications}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>
-                    {notifPermission === 'denied'
-                      ? 'Notifications Blocked (Check Browser Settings)'
-                      : 'Allow Browser Notifications'}
-                  </span>
-                </button>
-              )}
-
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  {notifPermission === 'granted' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>Permission Granted</span>
-                    </>
-                  ) : notifPermission === 'unsupported' ? (
-                    <>
-                      <BellOff className="w-3.5 h-3.5 text-amber-500" />
-                      <span>In-App Mode</span>
-                    </>
-                  ) : (
-                    <span>Status: {notifPermission}</span>
-                  )}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={handleSendTestReminder}
-                  className="px-2.5 py-1.5 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg transition-colors cursor-pointer"
-                >
-                  Send Test Reminder
-                </button>
-              </div>
-
-              {testNoticeStatus && (
-                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
-                  {testNoticeStatus}
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {/* Study Days Selector */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  Repeat on Days
+                </span>
+                <div className="grid grid-cols-7 gap-1">
+                  {WEEKDAYS.map((d) => {
+                    const active = reminderConfig.daysOfWeek.includes(d.value);
+                    return (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => handleToggleWeekday(d.value)}
+                        title={d.full}
+                        className={`py-1.5 text-[11px] font-mono font-bold rounded-lg transition-all cursor-pointer ${
+                          active
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Permission Action + Test Reminder Button */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                {notifPermission !== 'granted' && notifPermission !== 'unsupported' && (
+                  <button
+                    type="button"
+                    onClick={handleRequestNotifications}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>
+                      {notifPermission === 'denied'
+                        ? 'Notifications Blocked (Check Browser Settings)'
+                        : 'Allow Browser Notifications'}
+                    </span>
+                  </button>
+                )}
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    {notifPermission === 'granted' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Permission Granted</span>
+                      </>
+                    ) : notifPermission === 'unsupported' ? (
+                      <>
+                        <BellOff className="w-3.5 h-3.5 text-amber-500" />
+                        <span>In-App Mode</span>
+                      </>
+                    ) : (
+                      <span>Status: {notifPermission}</span>
+                    )}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleSendTestReminder}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Send Test Reminder
+                  </button>
+                </div>
+
+                {testNoticeStatus && (
+                  <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
+                    {testNoticeStatus}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Integrated Pomodoro Focus Timer */}
           <PomodoroTimer
@@ -795,41 +887,48 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
             onStatusChange={setPomodoroLiveStatus}
           />
 
-          {/* Quick Day Navigator Matrix */}
-          <div className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Jump to Day
-              </span>
-              <span className="text-slate-400 font-mono">Total {schedule.length}</span>
-            </div>
+          {/* Focus Mode Ambient Soundscapes (Rain, Cafe, White Noise) */}
+          {isFocusMode && (
+            <AmbientNoisePlayer language={language} isFocusMode={isFocusMode} />
+          )}
 
-            <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 max-h-60 overflow-y-auto p-1">
-              {schedule.map((task) => {
-                const isCurrent = task.dayNumber === currentDay;
-                const isCompleted = completedDays.includes(task.dayNumber);
+          {/* Quick Day Navigator Matrix (Hidden in Focus Mode) */}
+          {!isFocusMode && (
+            <div className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Jump to Day
+                </span>
+                <span className="text-slate-400 font-mono">Total {schedule.length}</span>
+              </div>
 
-                return (
-                  <button
-                    key={task.dayNumber}
-                    onClick={() => {
-                      setCurrentDay(task.dayNumber);
-                      setShowAnswer(false);
-                    }}
-                    className={`py-1.5 text-xs font-mono font-medium rounded transition-all cursor-pointer ${
-                      isCurrent
-                        ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-400'
-                        : isCompleted
-                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {task.dayNumber}
-                  </button>
-                );
-              })}
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 max-h-60 overflow-y-auto p-1">
+                {schedule.map((task) => {
+                  const isCurrent = task.dayNumber === currentDay;
+                  const isCompleted = completedDays.includes(task.dayNumber);
+
+                  return (
+                    <button
+                      key={task.dayNumber}
+                      onClick={() => {
+                        setCurrentDay(task.dayNumber);
+                        setShowAnswer(false);
+                      }}
+                      className={`py-1.5 text-xs font-mono font-medium rounded transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-400'
+                          : isCompleted
+                          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {task.dayNumber}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

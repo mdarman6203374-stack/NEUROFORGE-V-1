@@ -19,11 +19,22 @@ import { DailyTask, Language } from '../types';
 import confetti from 'canvas-confetti';
 
 export type FocusTaskTarget = 'concept' | 'code' | 'quiz';
+export type TimerPreset = 'pomodoro-25' | 'deep-50' | 'break-10' | 'short-break-5' | 'long-break-15';
 
 export interface PomodoroStartRequest {
-  target: FocusTaskTarget;
+  target?: FocusTaskTarget;
   preset?: TimerPreset;
+  action?: 'start' | 'toggle' | 'reset';
   nonce: number;
+}
+
+export interface PomodoroLiveStatus {
+  isRunning: boolean;
+  remainingSeconds: number;
+  totalSeconds: number;
+  target: FocusTaskTarget;
+  isBreak: boolean;
+  preset: TimerPreset;
 }
 
 interface PomodoroTimerProps {
@@ -31,15 +42,8 @@ interface PomodoroTimerProps {
   language: Language;
   startRequest?: PomodoroStartRequest | null;
   onSessionComplete?: (taskType: string, minutes: number) => void;
-  onStatusChange?: (status: {
-    isRunning: boolean;
-    remainingSeconds: number;
-    target: FocusTaskTarget;
-    isBreak: boolean;
-  }) => void;
+  onStatusChange?: (status: PomodoroLiveStatus) => void;
 }
-
-export type TimerPreset = 'pomodoro-25' | 'deep-50' | 'break-10' | 'short-break-5' | 'long-break-15';
 
 interface FocusSessionLog {
   id: string;
@@ -125,12 +129,23 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   };
 
-  // Respond immediately when user clicks "Start 25m Focus" from a daily task block
+  // Respond immediately to start, toggle, or reset commands from DailySchedulerView / Focus Mode header
   useEffect(() => {
     if (!startRequest) return;
+    if (startRequest.action === 'toggle') {
+      setIsRunning((prev) => !prev);
+      return;
+    }
+    if (startRequest.action === 'reset') {
+      setIsRunning(false);
+      setRemainingSeconds(totalSeconds);
+      return;
+    }
     const preset: TimerPreset = startRequest.preset || 'pomodoro-25';
     const secs = PRESET_DURATIONS[preset];
-    setSelectedTaskTarget(startRequest.target);
+    if (startRequest.target) {
+      setSelectedTaskTarget(startRequest.target);
+    }
     setActivePreset(preset);
     setTotalSeconds(secs);
     setRemainingSeconds(secs);
@@ -140,17 +155,19 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     } catch {}
   }, [startRequest]);
 
-  // Emit live timer state back to DailySchedulerView
+  // Emit live timer state back to DailySchedulerView & Focus Mode header
   useEffect(() => {
     if (onStatusChange) {
       onStatusChange({
         isRunning,
         remainingSeconds,
+        totalSeconds,
         target: selectedTaskTarget,
-        isBreak: activePreset.includes('break')
+        isBreak: activePreset.includes('break'),
+        preset: activePreset
       });
     }
-  }, [isRunning, remainingSeconds, selectedTaskTarget, activePreset, onStatusChange]);
+  }, [isRunning, remainingSeconds, totalSeconds, selectedTaskTarget, activePreset, onStatusChange]);
 
   // Timer interval loop
   useEffect(() => {

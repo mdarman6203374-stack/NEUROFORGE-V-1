@@ -8,6 +8,7 @@ import { generateDailySchedule } from '../data/dailyScheduleData';
 import { HINDI_CHANNELS_DATA } from '../data/hindiChannelsData';
 import { CAREER_ROLES_DATA } from '../data/careerData';
 import { FUTURE_AI_TRENDS } from '../data/futureOutlookData';
+import { AMBIENT_SOUND_PRESETS, AmbientSoundId } from '../data/ambientSoundsData';
 import { MasterPlanMonths, SchedulePace } from '../types';
 
 const VALID_PACES: SchedulePace[] = [
@@ -100,6 +101,18 @@ export const API_ENDPOINTS_CATALOG = [
     path: '/api/v1/progress/summary',
     summary: 'Calculate mastery %, category stats & next study task from completed IDs',
     sample: '/api/v1/progress/summary'
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/focus/ambient',
+    summary: 'List Focus Mode ambient soundscapes (Rain, Cafe, White Noise) & acoustic profiles',
+    sample: '/api/v1/focus/ambient'
+  },
+  {
+    method: 'POST',
+    path: '/api/v1/focus/session',
+    summary: 'Log & evaluate a Focus Mode Pomodoro + ambient sound study session',
+    sample: '/api/v1/focus/session'
   },
   {
     method: 'POST',
@@ -412,5 +425,68 @@ v1Router.post('/progress/summary', (req: Request, res: Response) => {
     phaseBreakdown,
     nextRecommendedConcept: nextConcept,
     nextDailyTask
+  });
+});
+
+v1Router.get('/focus/ambient', (req: Request, res: Response) => {
+  const idFilter = typeof req.query.id === 'string' ? req.query.id.trim().toLowerCase() : '';
+  const sounds = idFilter
+    ? AMBIENT_SOUND_PRESETS.filter((s) => s.id === idFilter)
+    : AMBIENT_SOUND_PRESETS;
+
+  if (idFilter && sounds.length === 0) {
+    res.status(404).json({
+      ok: false,
+      error: `Ambient sound preset '${idFilter}' not found. Valid options: rain, cafe, white-noise.`
+    });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    count: sounds.length,
+    sounds
+  });
+});
+
+v1Router.post('/focus/session', (req: Request, res: Response) => {
+  const {
+    dayNumber = 1,
+    durationMinutes = 25,
+    targetBlock = 'concept',
+    ambientSound = 'rain',
+    pace = '20-months'
+  } = req.body || {};
+
+  const mins = Number(durationMinutes);
+  const day = Number(dayNumber);
+  if (!Number.isFinite(mins) || mins < 1 || mins > 360) {
+    res.status(400).json({
+      ok: false,
+      error: 'durationMinutes must be a valid number between 1 and 360'
+    });
+    return;
+  }
+
+  const validSound: AmbientSoundId =
+    ambientSound === 'cafe' || ambientSound === 'white-noise' ? ambientSound : 'rain';
+  const validPace: SchedulePace = VALID_PACES.includes(pace as SchedulePace)
+    ? (pace as SchedulePace)
+    : '20-months';
+  const soundMeta = AMBIENT_SOUND_PRESETS.find((s) => s.id === validSound) || AMBIENT_SOUND_PRESETS[0];
+
+  res.json({
+    ok: true,
+    sessionId: `focus_${Date.now()}`,
+    recordedAt: new Date().toISOString(),
+    dayNumber: Number.isFinite(day) && day >= 1 ? day : 1,
+    pace: validPace,
+    targetBlock: String(targetBlock),
+    durationMinutes: mins,
+    pomodoroBlocksEarned: Number((mins / 25).toFixed(2)),
+    ambientSound: {
+      id: soundMeta.id,
+      name: soundMeta.name
+    }
   });
 });
