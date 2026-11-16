@@ -122,6 +122,29 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
     });
   };
 
+  const handleSetCustomPomodoroMinutes = (minutes: number) => {
+    setPomodoroStartRequest({
+      action: 'set-custom',
+      preset: 'custom',
+      customMinutes: minutes,
+      nonce: Date.now()
+    });
+  };
+
+  const handleTogglePomodoroSound = () => {
+    setPomodoroStartRequest({
+      action: 'toggle-sound',
+      nonce: Date.now()
+    });
+  };
+
+  const handleTestPomodoroChime = () => {
+    setPomodoroStartRequest({
+      action: 'test-chime',
+      nonce: Date.now()
+    });
+  };
+
   const formatCountdown = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -263,7 +286,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
         <div className="px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-indigo-300 dark:border-indigo-700/70 shadow-sm flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider rounded-lg bg-indigo-600 text-white">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              <Timer className="w-3.5 h-3.5" />
               Focus Mode
             </span>
             <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
@@ -282,6 +305,9 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               status={pomodoroLiveStatus}
               onToggleRun={handleToggleHeaderPomodoro}
               onReset={handleResetHeaderPomodoro}
+              onSetCustomMinutes={handleSetCustomPomodoroMinutes}
+              onToggleSound={handleTogglePomodoroSound}
+              onTestChime={handleTestPomodoroChime}
               language={language}
             />
             {onToggleFocusMode && (
