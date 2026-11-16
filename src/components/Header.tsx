@@ -49,13 +49,13 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, dbMode, syncState, signInWithGoogle, signOut: firebaseSignOut, loading: authLoading } = useAuth();
 
   const navItems = [
+    { id: 'twenty-month-plan', label: 'Master Plan' },
     { id: 'roadmap', label: 'Roadmap' },
-    { id: 'twenty-month-plan', label: 'Master Plans' },
     { id: 'daily-planner', label: 'Daily Planner' },
+    { id: 'hindi-playlists', label: language === 'hinglish' ? 'YouTube Playlists' : 'YouTube Playlists' },
     { id: '3d-neural', label: '3D Neural Lab' },
     { id: 'gemini-copilot', label: '24/7 AI Tutor' },
     { id: 'image-studio', label: 'Image Studio' },
-    { id: 'hindi-playlists', label: language === 'hinglish' ? 'Hindi Channels' : 'Hindi Playlists' },
     { id: 'future-projects', label: 'Future Projects' },
     { id: 'careers', label: 'Careers & Jobs' },
     { id: 'future-outlook', label: 'Future AI 2027+' }

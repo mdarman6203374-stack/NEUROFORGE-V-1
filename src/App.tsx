@@ -17,6 +17,7 @@ import { CloudSyncModal } from './components/CloudSyncModal';
 import { FloatingAiTutor } from './components/FloatingAiTutor';
 import { ApiDocsModal } from './components/ApiDocsModal';
 import { LoadingPage } from './components/LoadingPage';
+import { ScheduleQuickTabs } from './components/ScheduleQuickTabs';
 import { useAuth } from './firebase/authContext';
 import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
@@ -28,6 +29,7 @@ import {
 import { ROADMAP_PHASES } from './data/roadmapData';
 import { generateDailySchedule } from './data/dailyScheduleData';
 import { sendGentleStudyNotification } from './utils/studyNotifications';
+import { generateProgressAndNotesPdf } from './utils/pdfGenerator';
 import { BellRing, X } from 'lucide-react';
 
 const DEFAULT_REMINDER_CONFIG: StudyReminderConfig = {
@@ -508,23 +510,34 @@ export default function App() {
         />
       )}
 
-      {/* Top 3-Zone Navigation Header (Hidden in Focus Mode) */}
+      {/* Top 3-Zone Navigation Header + Compact Serial Schedule Tabs (Hidden in Focus Mode) */}
       {!focusSessionActive && (
-        <Header
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          language={language}
-          setLanguage={setLanguage}
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          onOpenExport={() => setIsExportModalOpen(true)}
-          onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
-          onOpenApiDocs={() => setIsApiDocsOpen(true)}
-          streakState={streakState}
-          onToggleTodayGoal={handleToggleTodayGoal}
-          isTodayCompleted={isTodayCompleted}
-          onTriggerMilestoneCelebration={(milestone) => setActiveMilestoneCelebration(milestone)}
-        />
+        <>
+          <Header
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            language={language}
+            setLanguage={setLanguage}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            onOpenExport={() => setIsExportModalOpen(true)}
+            onOpenCloudSync={() => setIsCloudSyncModalOpen(true)}
+            onOpenApiDocs={() => setIsApiDocsOpen(true)}
+            streakState={streakState}
+            onToggleTodayGoal={handleToggleTodayGoal}
+            isTodayCompleted={isTodayCompleted}
+            onTriggerMilestoneCelebration={(milestone) => setActiveMilestoneCelebration(milestone)}
+          />
+          <ScheduleQuickTabs
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            language={language}
+            pace={pace}
+            completedDaysCount={completedDays.length}
+            completedConceptsCount={completedConcepts.length}
+            totalConceptsCount={totalConceptsCount}
+          />
+        </>
       )}
 
       {/* Main Container */}
@@ -571,6 +584,16 @@ export default function App() {
             onShowInAppReminder={(title, body) => setInAppReminderToast({ title, body })}
             isFocusMode={isFocusMode}
             onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
+            onExportProgressPdf={() =>
+              generateProgressAndNotesPdf({
+                pace,
+                completedConcepts,
+                completedDays,
+                language,
+                streakState,
+                userEmail: user?.email || null
+              })
+            }
           />
         )}
 
@@ -620,22 +643,28 @@ export default function App() {
 
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <button
-                onClick={() => setActiveTab('roadmap')}
-                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                Roadmap
-              </button>
-              <button
                 onClick={() => setActiveTab('twenty-month-plan')}
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
-                Master Plans
+                01 Master Plan
+              </button>
+              <button
+                onClick={() => setActiveTab('roadmap')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                02 Roadmap
               </button>
               <button
                 onClick={() => setActiveTab('daily-planner')}
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
-                Daily Schedule
+                03 Daily Planner
+              </button>
+              <button
+                onClick={() => setActiveTab('hindi-playlists')}
+                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                04 YouTube Playlists
               </button>
               <button
                 onClick={() => setActiveTab('3d-neural')}
@@ -654,12 +683,6 @@ export default function App() {
                 className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
               >
                 Image Studio
-              </button>
-              <button
-                onClick={() => setActiveTab('hindi-playlists')}
-                className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                Hindi YouTube
               </button>
               <button
                 onClick={() => setActiveTab('future-projects')}

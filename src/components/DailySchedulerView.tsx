@@ -31,6 +31,7 @@ import {
 } from './PomodoroTimer';
 import { FocusModePomodoroTimer } from './FocusModePomodoroTimer';
 import { AmbientNoisePlayer } from './AmbientNoisePlayer';
+import { StudyScratchpad } from './StudyScratchpad';
 import {
   BrowserNotificationPermission,
   getNotificationPermission,
@@ -52,6 +53,7 @@ interface DailySchedulerViewProps {
   onShowInAppReminder?: (title: string, body: string) => void;
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  onExportProgressPdf?: () => void;
 }
 
 const WEEKDAYS = [
@@ -84,7 +86,8 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   setReminderConfig,
   onShowInAppReminder,
   isFocusMode = false,
-  onToggleFocusMode
+  onToggleFocusMode,
+  onExportProgressPdf
 }) => {
   const [schedule, setSchedule] = useState<DailyTask[]>(() => generateDailySchedule(pace));
   const [currentDay, setCurrentDay] = useState<number>(initialDay || 1);
@@ -707,6 +710,14 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Per-Day LocalStorage Study Scratchpad */}
+          <StudyScratchpad
+            dayNumber={activeTask.dayNumber}
+            dayTitle={language === 'hinglish' ? activeTask.hinglishTitle : activeTask.title}
+            language={language}
+            onExportReportPdf={onExportProgressPdf}
+          />
         </div>
 
         {/* Right Column: Browser Study Reminders + Pomodoro Timer + Quick Jump Matrix */}

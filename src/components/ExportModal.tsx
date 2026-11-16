@@ -13,7 +13,11 @@ import {
 import { ROADMAP_PHASES } from '../data/roadmapData';
 import { generateMasterPlanForMonths, TIMELINE_TRACK_CONFIGS } from '../data/twentyMonthMasterPlanData';
 import { SchedulePace, Language, MasterPlanMonths, StreakState, StudyReminderConfig } from '../types';
-import { generateRoadmapPdf } from '../utils/pdfGenerator';
+import {
+  generateRoadmapPdf,
+  generateProgressAndNotesPdf,
+  collectSavedScratchpadNotes
+} from '../utils/pdfGenerator';
 
 export interface RestoredBackupPayload {
   pace: SchedulePace;
@@ -52,11 +56,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
+  const [isGeneratingReportPdf, setIsGeneratingReportPdf] = useState(false);
+  const [reportPdfDownloaded, setReportPdfDownloaded] = useState(false);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
+
+  const savedScratchpadNotes = collectSavedScratchpadNotes();
+  const totalScratchpadWords = savedScratchpadNotes.reduce((sum, n) => sum + n.wordCount, 0);
 
   const masterMonths: MasterPlanMonths | null =
     pace === '20-months'
@@ -160,6 +169,27 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       console.error('Error generating PDF:', err);
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadProgressReportPdf = async () => {
+    try {
+      setIsGeneratingReportPdf(true);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      generateProgressAndNotesPdf({
+        pace,
+        completedConcepts,
+        completedDays,
+        language,
+        streakState,
+        userEmail
+      });
+      setReportPdfDownloaded(true);
+      setTimeout(() => setReportPdfDownloaded(false), 3500);
+    } catch (err) {
+      console.error('Error generating Study Progress & Notes PDF:', err);
+    } finally {
+      setIsGeneratingReportPdf(false);
     }
   };
 
@@ -315,7 +345,49 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 max-h-[82vh] overflow-y-auto">
+          {/* Personal Progress & Study Notes PDF Report */}
+          <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-50/70 via-white to-indigo-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/25 border border-emerald-200 dark:border-emerald-800/70 shadow-xs space-y-4">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Study Progress & Scratchpad Notes Report (.pdf)</span>
+                </span>
+                <span className="text-[11px] font-mono tabular-nums text-emerald-700 dark:text-emerald-400 font-semibold">
+                  {savedScratchpadNotes.length} {savedScratchpadNotes.length === 1 ? 'Day Note' : 'Day Notes'} ({totalScratchpadWords}w)
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Formatted A4 executive summary of your current mastery progress across all roadmap phases, completed study days, streak stats, and every daily note saved in your Study Scratchpad.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDownloadProgressReportPdf}
+              disabled={isGeneratingReportPdf}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60 rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              {isGeneratingReportPdf ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Building Progress & Notes PDF...</span>
+                </>
+              ) : reportPdfDownloaded ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                  <span>Progress & Notes PDF Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Export Progress & Notes Report (.pdf)</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Main PDF Featured Option */}
           <div className="p-5 rounded-xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/30 border border-indigo-200 dark:border-indigo-800/80 shadow-xs space-y-4">
             <div className="flex items-start justify-between gap-3">
