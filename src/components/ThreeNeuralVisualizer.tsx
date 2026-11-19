@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { Sparkles, Eye, RotateCw, Pause, Play, Layers, Maximize2, Zap, Info } from 'lucide-react';
+import { Sparkles, Eye, RotateCw, Pause, Play, Layers, Maximize2, Zap, Info, Grid3X3 } from 'lucide-react';
 import { Language } from '../types';
+import { AttentionHeatmapExplorer } from './AttentionHeatmapExplorer';
 
 interface ThreeNeuralVisualizerProps {
   language: Language;
 }
 
 export const ThreeNeuralVisualizer: React.FC<ThreeNeuralVisualizerProps> = ({ language }) => {
+  const [visualMode, setVisualMode] = useState<'3d-core' | 'attention-heatmap'>('3d-core');
   const mountRef = useRef<HTMLDivElement>(null);
 
   // Floating dock control states
@@ -37,6 +39,7 @@ export const ThreeNeuralVisualizer: React.FC<ThreeNeuralVisualizerProps> = ({ la
   }, [isRotating, explodeLayers, activeHead, wireframeMode]);
 
   useEffect(() => {
+    if (visualMode !== '3d-core') return;
     const container = mountRef.current;
     if (!container) return;
 
@@ -465,12 +468,70 @@ export const ThreeNeuralVisualizer: React.FC<ThreeNeuralVisualizerProps> = ({ la
         domElement.parentElement.removeChild(domElement);
       }
     };
-  }, []);
+  }, [visualMode]);
+
+  if (visualMode === 'attention-heatmap') {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+            <Layers className="w-4 h-4 text-indigo-500" />
+            <span>Visual Intuition Studio</span>
+          </div>
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setVisualMode('3d-core')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>3D Transformer Core</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisualMode('attention-heatmap')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-xs cursor-pointer"
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+              <span>Attention Heatmap & BPE Explorer</span>
+            </button>
+          </div>
+        </div>
+        <AttentionHeatmapExplorer language={language} />
+      </div>
+    );
+  }
 
   return (
-    <div className="relative w-full h-[620px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
-      {/* 3D WebGL Canvas Container */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+          <Layers className="w-4 h-4 text-indigo-500" />
+          <span>Visual Intuition Studio</span>
+        </div>
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => setVisualMode('3d-core')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white shadow-xs cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>3D Transformer Core</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisualMode('attention-heatmap')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+          >
+            <Grid3X3 className="w-3.5 h-3.5" />
+            <span>Attention Heatmap & BPE Explorer</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="relative w-full h-[620px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl">
+        {/* 3D WebGL Canvas Container */}
+        <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Top Banner Overlay */}
       <div className="absolute top-4 left-4 z-10 pointer-events-none">
@@ -556,6 +617,7 @@ export const ThreeNeuralVisualizer: React.FC<ThreeNeuralVisualizerProps> = ({ la
             {wireframeMode ? 'ON' : 'OFF'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

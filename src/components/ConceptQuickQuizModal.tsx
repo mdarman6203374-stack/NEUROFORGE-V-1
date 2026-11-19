@@ -9,6 +9,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Language } from '../types';
+import { enqueueWeakQuizQuestions } from '../utils/spacedRepetition';
 
 export interface QuizQuestionItem {
   id: string;
@@ -316,12 +317,28 @@ export const ConceptQuickQuizModal: React.FC<ConceptQuickQuizModalProps> = ({
                               key={optIdx}
                               type="button"
                               disabled={isAnswered}
-                              onClick={() =>
+                              onClick={() => {
                                 setSelectedAnswers((prev) => ({
                                   ...prev,
                                   [q.id]: optIdx
-                                }))
-                              }
+                                }));
+                                if (optIdx !== q.correctIndex && quizData) {
+                                  enqueueWeakQuizQuestions(
+                                    quizData.conceptId || conceptId,
+                                    quizData.conceptTitle || conceptTitle,
+                                    quizData.phaseNumber || 0,
+                                    [
+                                      {
+                                        id: q.id,
+                                        question: q.question,
+                                        correctOption: q.options[q.correctIndex] || '',
+                                        explanation: q.explanation
+                                      }
+                                    ]
+                                  );
+                                  window.dispatchEvent(new Event('neuroforge-srs-updated'));
+                                }
+                              }}
                               className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs sm:text-[13px] transition-colors flex items-start gap-2.5 ${
                                 isAnswered ? 'cursor-default' : 'cursor-pointer'
                               } ${btnClasses}`}

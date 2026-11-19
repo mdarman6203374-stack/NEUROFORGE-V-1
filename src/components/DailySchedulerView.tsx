@@ -19,7 +19,11 @@ import {
   Play,
   Timer,
   Maximize2,
-  Minimize2
+  Minimize2,
+  RefreshCw,
+  BarChart3,
+  Terminal,
+  Trash2
 } from 'lucide-react';
 import { SchedulePace, Language, DailyTask, StudyReminderConfig } from '../types';
 import { generateDailySchedule } from '../data/dailyScheduleData';
@@ -32,6 +36,15 @@ import {
 import { FocusModePomodoroTimer } from './FocusModePomodoroTimer';
 import { AmbientNoisePlayer } from './AmbientNoisePlayer';
 import { StudyScratchpad } from './StudyScratchpad';
+import { MorningWarmupWidget } from './MorningWarmupWidget';
+import { PyodideSandbox } from './PyodideSandbox';
+import { WeeklyDigestModal } from './WeeklyDigestModal';
+import {
+  RebalancePlanState,
+  loadRebalancePlan,
+  computeAndSaveRebalancePlan,
+  clearRebalancePlan
+} from '../utils/workflowFeatures';
 import {
   BrowserNotificationPermission,
   getNotificationPermission,
@@ -54,6 +67,9 @@ interface DailySchedulerViewProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
   onExportProgressPdf?: () => void;
+  completedConcepts?: string[];
+  onNavigateMemoryLab?: (subTab?: 'srs' | 'feynman') => void;
+  onOpenCodeLab?: (subTab?: 'python' | 'rag' | 'bugs') => void;
 }
 
 const WEEKDAYS = [
@@ -87,7 +103,10 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   onShowInAppReminder,
   isFocusMode = false,
   onToggleFocusMode,
-  onExportProgressPdf
+  onExportProgressPdf,
+  completedConcepts = ['p0-1', 'p0-2'],
+  onNavigateMemoryLab,
+  onOpenCodeLab
 }) => {
   const [schedule, setSchedule] = useState<DailyTask[]>(() => generateDailySchedule(pace));
   const [currentDay, setCurrentDay] = useState<number>(initialDay || 1);
@@ -98,6 +117,13 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   const [testNoticeStatus, setTestNoticeStatus] = useState<string | null>(null);
   const [pomodoroStartRequest, setPomodoroStartRequest] = useState<PomodoroStartRequest | null>(null);
   const [pomodoroLiveStatus, setPomodoroLiveStatus] = useState<PomodoroLiveStatus | null>(null);
+  const [showPyodideInline, setShowPyodideInline] = useState<boolean>(false);
+  const [isWeeklyDigestOpen, setIsWeeklyDigestOpen] = useState<boolean>(false);
+  const [showRebalancePanel, setShowRebalancePanel] = useState<boolean>(false);
+  const [missedDaysInput, setMissedDaysInput] = useState<number>(3);
+  const [rebalancePlan, setRebalancePlan] = useState<RebalancePlanState | null>(() =>
+    loadRebalancePlan()
+  );
 
   const handleStart25MinBlock = (target: FocusTaskTarget) => {
     setPomodoroStartRequest({
@@ -442,13 +468,155 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Smarter Workflow Controls: Missed-Day Auto-Rescheduler + Weekly AI Progress Digest */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRebalancePanel((prev) => !prev)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                  rebalancePlan
+                    ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                <span>
+                  {rebalancePlan
+                    ? `Catch-Up Active (${rebalancePlan.missedDaysCount}d shifted)`
+                    : 'Missed Days? Auto-Rebalance'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsWeeklyDigestOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Sunday Progress Digest</span>
+              </button>
+            </div>
+
+            <span className="text-[11px] font-mono text-slate-400">
+              {rebalancePlan
+                ? rebalancePlan.preservedTimelineLabel
+                : 'Adaptive Weekend Catch-Up Ready'}
+            </span>
+          </div>
+
+          {showRebalancePanel && (
+            <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-slate-900 dark:text-white">
+                    Dynamic Missed-Day Catch-Up Auto-Rescheduler
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Shift missed weekday study blocks into compact 55% weekend sprints without breaking your target{' '}
+                    <span className="font-mono font-semibold">{pace}</span> timeline.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <label className="text-slate-600 dark:text-slate-300 font-semibold">
+                    Missed Days:
+                  </label>
+                  <select
+                    value={missedDaysInput}
+                    onChange={(e) => setMissedDaysInput(Number(e.target.value))}
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                      <option key={n} value={n}>
+                        {n} {n === 1 ? 'Day' : 'Days'}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const plan = computeAndSaveRebalancePlan(
+                        pace,
+                        schedule,
+                        completedDays,
+                        currentDay,
+                        missedDaysInput
+                      );
+                      setRebalancePlan(plan);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer"
+                  >
+                    Rebalance Schedule
+                  </button>
+                  {rebalancePlan && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearRebalancePlan();
+                        setRebalancePlan(null);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 cursor-pointer"
+                      title="Clear catch-up plan"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {rebalancePlan && rebalancePlan.weekendSlots.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2">
+                  {rebalancePlan.weekendSlots.map((slot) => (
+                    <div
+                      key={slot.weekendIndex}
+                      className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between font-mono text-[11px]">
+                        <span className="font-bold text-amber-700 dark:text-amber-300">
+                          {slot.weekendLabel}
+                        </span>
+                        <span className="text-slate-500">{slot.totalWeekendMins}m sprint</span>
+                      </div>
+                      <ul className="space-y-1">
+                        {slot.absorbedDays.map((d) => (
+                          <li key={d.dayNumber} className="flex items-center justify-between gap-2 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentDay(d.dayNumber)}
+                              className="text-left text-indigo-600 dark:text-indigo-400 hover:underline truncate cursor-pointer"
+                            >
+                              Day {d.dayNumber}: {d.title}
+                            </button>
+                            <span className="font-mono text-slate-400 shrink-0">
+                              {d.estCatchupMins}m
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Main Grid: Left is Day Card, Right is Focus Pomodoro Timer, Notification Scheduler & Day Quick Strip */}
+      {/* Main Grid: Left is Morning Warmup + Day Card, Right is Focus Pomodoro Timer, Notification Scheduler & Day Quick Strip */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Detailed Active Day Plan */}
         <div className="lg:col-span-8 space-y-6">
+          {/* 3-Minute Morning Warmup SRS Queue */}
+          {!isFocusMode && (
+            <MorningWarmupWidget
+              completedConcepts={completedConcepts}
+              language={language}
+              onOpenMemoryLab={onNavigateMemoryLab}
+            />
+          )}
+
           {/* Day Navigation Toolbar */}
           <div className="flex items-center justify-between gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <button
@@ -694,19 +862,60 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
 
             {/* Block 3: Hands-on Code Challenge */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-emerald-500" />
-                <span>03. Hands-on Code Challenge of the Day</span>
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <Code2 className="w-4 h-4 text-emerald-500" />
+                  <span>03. Hands-on Code Challenge of the Day</span>
+                </h3>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPyodideInline((prev) => !prev)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-colors cursor-pointer ${
+                      showPyodideInline
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                    }`}
+                  >
+                    <Terminal className="w-3 h-3" />
+                    <span>
+                      {showPyodideInline
+                        ? 'Hide In-Browser Python Sandbox'
+                        : 'Run in Browser Python Sandbox'}
+                    </span>
+                  </button>
+
+                  {onOpenCodeLab && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCodeLab('bugs')}
+                      className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Bug Spotter →
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="p-4 bg-slate-900 text-slate-200 rounded-xl border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
                   <span>TASK INSTRUCTION:</span>
-                  <span>Python 3.12 / VS Code</span>
+                  <span>Pyodide Python 3.11 / VS Code</span>
                 </div>
                 <p className="text-xs font-mono leading-relaxed text-emerald-300">
                   {activeTask.handsOnTask}
                 </p>
               </div>
+
+              {showPyodideInline && (
+                <PyodideSandbox
+                  compact
+                  language={language}
+                  suggestedPhase={activeTask.phaseNumber}
+                  customPrompt={activeTask.handsOnTask}
+                />
+              )}
             </div>
 
             {/* Block 4: Quick-Check Retention Quiz */}
@@ -968,6 +1177,22 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Weekly AI Progress & Weak-Spot Digest Modal */}
+      <WeeklyDigestModal
+        isOpen={isWeeklyDigestOpen}
+        onClose={() => setIsWeeklyDigestOpen(false)}
+        pace={pace}
+        completedDays={completedDays}
+        completedConcepts={completedConcepts}
+        language={language}
+        onNavigateToMemoryLab={() => {
+          setIsWeeklyDigestOpen(false);
+          if (onNavigateMemoryLab) {
+            onNavigateMemoryLab('srs');
+          }
+        }}
+      />
     </div>
   );
 };

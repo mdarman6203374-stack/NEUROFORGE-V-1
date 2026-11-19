@@ -32,12 +32,21 @@ export const StudyScratchpad: React.FC<StudyScratchpadProps> = ({
   const [clearedBackup, setClearedBackup] = useState<{ day: number; text: string } | null>(null);
   const savedTimerRef = useRef<number | null>(null);
 
-  // Sync note whenever the active study day changes in the planner
+  // Sync note whenever the active study day changes in the planner OR YouTube bookmark appends
   useEffect(() => {
     setNote(readScratchpadNote(dayNumber));
     setSavedLabel(false);
     setCopied(false);
     setClearedBackup(null);
+
+    const handleExternalUpdate = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ dayNumber?: number }>).detail;
+      if (!detail || detail.dayNumber === dayNumber) {
+        setNote(readScratchpadNote(dayNumber));
+      }
+    };
+    window.addEventListener('neuroforge-scratchpad-updated', handleExternalUpdate);
+    return () => window.removeEventListener('neuroforge-scratchpad-updated', handleExternalUpdate);
   }, [dayNumber]);
 
   useEffect(() => {

@@ -6,10 +6,21 @@ import {
   Lightbulb,
   ArrowUpRight,
   ListOrdered,
-  Users
+  Users,
+  BookmarkPlus,
+  Clock,
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { HINDI_CHANNELS_DATA, HINDI_LEARNING_PRO_TIPS } from '../data/hindiChannelsData';
 import { Language } from '../types';
+import {
+  YoutubeTimestampBookmark,
+  loadYoutubeBookmarks,
+  addYoutubeTimestampBookmark,
+  deleteYoutubeTimestampBookmark
+} from '../utils/workflowFeatures';
 
 interface HindiChannelsViewProps {
   language: Language;
@@ -23,6 +34,14 @@ const getPhaseOrder = (phaseMapped: string): number => {
 export const HindiChannelsView: React.FC<HindiChannelsViewProps> = ({ language }) => {
   const [viewMode, setViewMode] = useState<'serial' | 'by-channel'>('serial');
   const [selectedPhase, setSelectedPhase] = useState<string>('All');
+  const [bookmarks, setBookmarks] = useState<YoutubeTimestampBookmark[]>(() =>
+    loadYoutubeBookmarks()
+  );
+  const [openBookmarkPlaylistKey, setOpenBookmarkPlaylistKey] = useState<string | null>(null);
+  const [tsInput, setTsInput] = useState('14:32');
+  const [noteInput, setNoteInput] = useState('');
+  const [dayInput, setDayInput] = useState(1);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const phaseOptions = [
     'All',
@@ -173,71 +192,189 @@ export const HindiChannelsView: React.FC<HindiChannelsViewProps> = ({ language }
       {/* Serialwise Schedule Playlist View OR Creators Grouped View */}
       {viewMode === 'serial' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {serialPlaylists.map((pl, idx) => (
-            <div
-              key={`${pl.channelName}-${pl.title}`}
-              className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs"
-            >
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono font-bold tabular-nums px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80">
-                      #{String(idx + 1).padStart(2, '0')}
-                    </span>
-                    <span className="font-semibold text-indigo-600 dark:text-indigo-400 truncate">
-                      {pl.phaseMapped}
+          {serialPlaylists.map((pl, idx) => {
+            const plKey = `${pl.channelName}::${pl.title}`;
+            const plBookmarks = bookmarks.filter((b) => b.playlistKey === plKey);
+            const isBmOpen = openBookmarkPlaylistKey === plKey;
+
+            return (
+              <div
+                key={`${pl.channelName}-${pl.title}`}
+                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono font-bold tabular-nums px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80">
+                        #{String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <span className="font-semibold text-indigo-600 dark:text-indigo-400 truncate">
+                        {pl.phaseMapped}
+                      </span>
+                    </div>
+                    <span className="font-mono tabular-nums text-slate-500 dark:text-slate-400 text-[11px] shrink-0">
+                      {pl.totalVideos} Videos
                     </span>
                   </div>
-                  <span className="font-mono tabular-nums text-slate-500 dark:text-slate-400 text-[11px] shrink-0">
-                    {pl.totalVideos} Videos
-                  </span>
+
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                    {pl.title}
+                  </h3>
+
+                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="w-5 h-5 rounded bg-red-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                      {pl.avatarText}
+                    </span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {pl.channelName}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{pl.level}</span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {pl.description}
+                  </p>
+
+                  <div className="space-y-1 pt-1">
+                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                      Must-Watch Episodes:
+                    </span>
+                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
+                      {pl.mustWatchEpisodes.map((ep, i) => (
+                        <li key={i} className="flex items-center gap-1.5">
+                          <span className="text-red-500 text-[10px]">▶</span>
+                          <span>{ep}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Timestamp Bookmarks Toggle & Auto-Notes Drawer */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setOpenBookmarkPlaylistKey(isBmOpen ? null : plKey)}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <BookmarkPlus className="w-3.5 h-3.5 text-red-500" />
+                        <span>Timestamp Bookmarks + Day Notes ({plBookmarks.length})</span>
+                      </span>
+                      {isBmOpen ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </button>
+
+                    {isBmOpen && (
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                        <div className="grid grid-cols-12 gap-1.5">
+                          <input
+                            type="text"
+                            value={tsInput}
+                            onChange={(e) => setTsInput(e.target.value)}
+                            placeholder="14:32"
+                            className="col-span-4 px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                            title="Timestamp (MM:SS)"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            max={600}
+                            value={dayInput}
+                            onChange={(e) =>
+                              setDayInput(Math.max(1, Number(e.target.value) || 1))
+                            }
+                            className="col-span-3 px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                            title="Link to Study Day"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = addYoutubeTimestampBookmark({
+                                playlistKey: plKey,
+                                playlistTitle: pl.title,
+                                timestamp: tsInput,
+                                note: noteInput || 'Key intuition timestamp',
+                                linkedDay: dayInput
+                              });
+                              setBookmarks(updated);
+                              setNoteInput('');
+                              setSavedNotice(`Appended to Day ${dayInput} Scratchpad`);
+                              setTimeout(() => setSavedNotice(null), 2500);
+                            }}
+                            className="col-span-5 py-1 px-2 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded cursor-pointer"
+                          >
+                            Save + Sync Day
+                          </button>
+                        </div>
+
+                        <input
+                          type="text"
+                          value={noteInput}
+                          onChange={(e) => setNoteInput(e.target.value)}
+                          placeholder="Note (e.g. Backprop chain rule intuition)"
+                          className="w-full px-2.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                        />
+
+                        {savedNotice && (
+                          <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            ✓ {savedNotice}
+                          </div>
+                        )}
+
+                        {plBookmarks.length > 0 && (
+                          <div className="space-y-1 max-h-28 overflow-y-auto pt-1">
+                            {plBookmarks.map((bm) => (
+                              <div
+                                key={bm.id}
+                                className="flex items-start justify-between gap-2 p-1.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]"
+                              >
+                                <div className="min-w-0">
+                                  <span className="font-mono font-bold text-red-600 dark:text-red-400 mr-1.5">
+                                    <Clock className="w-3 h-3 inline mr-0.5" />
+                                    {bm.timestamp}
+                                  </span>
+                                  <span className="font-mono text-indigo-600 dark:text-indigo-400 mr-1.5">
+                                    [Day {bm.linkedDay}]
+                                  </span>
+                                  <span className="text-slate-700 dark:text-slate-300">
+                                    {bm.note}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setBookmarks(deleteYoutubeTimestampBookmark(bm.id))
+                                  }
+                                  className="text-slate-400 hover:text-rose-500 cursor-pointer shrink-0"
+                                  aria-label="Delete bookmark"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                  {pl.title}
-                </h3>
-
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="w-5 h-5 rounded bg-red-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
-                    {pl.avatarText}
-                  </span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    {pl.channelName}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>{pl.level}</span>
-                </div>
-
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {pl.description}
-                </p>
-
-                <div className="space-y-1 pt-1">
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    Must-Watch Episodes:
-                  </span>
-                  <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
-                    {pl.mustWatchEpisodes.map((ep, i) => (
-                      <li key={i} className="flex items-center gap-1.5">
-                        <span className="text-red-500 text-[10px]">▶</span>
-                        <span>{ep}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <a
+                  href={pl.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-semibold text-white bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                >
+                  <span>Open Playlist on YouTube</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
-
-              <a
-                href={pl.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-semibold text-white bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
-              >
-                <span>Open Playlist on YouTube</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-6">
@@ -299,56 +436,178 @@ export const HindiChannelsView: React.FC<HindiChannelsViewProps> = ({ language }
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {channel.playlists.map((pl, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between space-y-3 hover:border-slate-300 dark:hover:border-slate-600 transition-all shadow-xs"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                          {pl.phaseMapped}
-                        </span>
-                        <span className="font-mono text-slate-400 text-[11px]">
-                          {pl.totalVideos} Videos
-                        </span>
-                      </div>
+                {channel.playlists.map((pl, idx) => {
+                  const plKey = `${channel.name}::${pl.title}`;
+                  const plBookmarks = bookmarks.filter((b) => b.playlistKey === plKey);
+                  const isBmOpen = openBookmarkPlaylistKey === plKey;
 
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
-                        {pl.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        {pl.description}
-                      </p>
-
-                      {/* Must-watch episodes */}
-                      <div className="space-y-1 pt-1">
-                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                          Must-Watch Episodes:
-                        </span>
-                        <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
-                          {pl.mustWatchEpisodes.map((ep, i) => (
-                            <li key={i} className="flex items-center gap-1.5">
-                              <span className="text-red-500 text-[10px]">▶</span>
-                              <span>{ep}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    <a
-                      href={pl.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-semibold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 rounded-lg transition-colors cursor-pointer"
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between space-y-3 hover:border-slate-300 dark:hover:border-slate-600 transition-all shadow-xs"
                     >
-                      <span>Open Playlist on YouTube</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                ))}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                            {pl.phaseMapped}
+                          </span>
+                          <span className="font-mono text-slate-400 text-[11px]">
+                            {pl.totalVideos} Videos
+                          </span>
+                        </div>
+
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-snug">
+                          {pl.title}
+                        </h3>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                          {pl.description}
+                        </p>
+
+                        {/* Must-watch episodes */}
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                            Must-Watch Episodes:
+                          </span>
+                          <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
+                            {pl.mustWatchEpisodes.map((ep, i) => (
+                              <li key={i} className="flex items-center gap-1.5">
+                                <span className="text-red-500 text-[10px]">▶</span>
+                                <span>{ep}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Timestamp Bookmarks Toggle & Auto-Notes Drawer */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 space-y-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenBookmarkPlaylistKey(isBmOpen ? null : plKey)
+                            }
+                            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/70 hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <BookmarkPlus className="w-3.5 h-3.5 text-red-500" />
+                              <span>
+                                Timestamp Bookmarks + Day Notes ({plBookmarks.length})
+                              </span>
+                            </span>
+                            {isBmOpen ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                          </button>
+
+                          {isBmOpen && (
+                            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
+                              <div className="grid grid-cols-12 gap-1.5">
+                                <input
+                                  type="text"
+                                  value={tsInput}
+                                  onChange={(e) => setTsInput(e.target.value)}
+                                  placeholder="14:32"
+                                  className="col-span-4 px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                                  title="Timestamp (MM:SS)"
+                                />
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={600}
+                                  value={dayInput}
+                                  onChange={(e) =>
+                                    setDayInput(Math.max(1, Number(e.target.value) || 1))
+                                  }
+                                  className="col-span-3 px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                                  title="Link to Study Day"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = addYoutubeTimestampBookmark({
+                                      playlistKey: plKey,
+                                      playlistTitle: pl.title,
+                                      timestamp: tsInput,
+                                      note: noteInput || 'Key intuition timestamp',
+                                      linkedDay: dayInput
+                                    });
+                                    setBookmarks(updated);
+                                    setNoteInput('');
+                                    setSavedNotice(`Appended to Day ${dayInput} Scratchpad`);
+                                    setTimeout(() => setSavedNotice(null), 2500);
+                                  }}
+                                  className="col-span-5 py-1 px-2 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded cursor-pointer"
+                                >
+                                  Save + Sync Day
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                value={noteInput}
+                                onChange={(e) => setNoteInput(e.target.value)}
+                                placeholder="Note (e.g. Backprop chain rule intuition)"
+                                className="w-full px-2.5 py-1 text-[11px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-slate-200"
+                              />
+
+                              {savedNotice && (
+                                <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                  ✓ {savedNotice}
+                                </div>
+                              )}
+
+                              {plBookmarks.length > 0 && (
+                                <div className="space-y-1 max-h-28 overflow-y-auto pt-1">
+                                  {plBookmarks.map((bm) => (
+                                    <div
+                                      key={bm.id}
+                                      className="flex items-start justify-between gap-2 p-1.5 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px]"
+                                    >
+                                      <div className="min-w-0">
+                                        <span className="font-mono font-bold text-red-600 dark:text-red-400 mr-1.5">
+                                          <Clock className="w-3 h-3 inline mr-0.5" />
+                                          {bm.timestamp}
+                                        </span>
+                                        <span className="font-mono text-indigo-600 dark:text-indigo-400 mr-1.5">
+                                          [Day {bm.linkedDay}]
+                                        </span>
+                                        <span className="text-slate-700 dark:text-slate-300">
+                                          {bm.note}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setBookmarks(deleteYoutubeTimestampBookmark(bm.id))
+                                        }
+                                        className="text-slate-400 hover:text-rose-500 cursor-pointer shrink-0"
+                                        aria-label="Delete bookmark"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <a
+                        href={pl.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-semibold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <span>Open Playlist on YouTube</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

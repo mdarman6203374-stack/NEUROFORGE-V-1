@@ -365,6 +365,542 @@ Requirements:
 });
 
 /**
+ * Feynman Technique 60-Second Explanation Evaluator API via Gemini
+ */
+app.post('/api/feynman/evaluate', async (req: Request, res: Response) => {
+  try {
+    const {
+      conceptId,
+      conceptTitle,
+      explanationText,
+      language = 'english',
+      durationSecondsUsed = 60
+    } = req.body || {};
+
+    if (!explanationText || typeof explanationText !== 'string' || explanationText.trim().length < 15) {
+      res.status(400).json({
+        error: 'Please share at least a sentence or two explaining the concept before grading.'
+      });
+      return;
+    }
+
+    let matchedConcept: {
+      id: string;
+      title: string;
+      description: string;
+      hinglishDesc?: string;
+      difficulty: string;
+    } | null = null;
+    let matchedPhase: { phaseNumber: number; title: string } | null = null;
+
+    if (conceptId && typeof conceptId === 'string') {
+      for (const phase of ROADMAP_PHASES) {
+        const found = phase.concepts.find((c) => c.id === conceptId);
+        if (found) {
+          matchedConcept = found;
+          matchedPhase = { phaseNumber: phase.phaseNumber, title: phase.title };
+          break;
+        }
+      }
+    }
+
+    const topicName = matchedConcept?.title || conceptTitle || 'AI Engineering Concept';
+    const topicDetails = matchedConcept
+      ? `Phase ${matchedPhase?.phaseNumber}: ${matchedPhase?.title}\nReference Syllabus Coverage: ${matchedConcept.description}`
+      : 'Evaluate strictly on first-principles AI engineering accuracy and beginner clarity.';
+
+    const langDirective =
+      language === 'hinglish'
+        ? 'Write strengths, missingIntuition, jargonTraps, verdictHeadline, and especially simplifiedAnalogy in natural, encouraging Hinglish (simple English technical words + everyday Roman Hindi intuition).'
+        : 'Write all feedback clearly in crisp, encouraging English suitable for a beginner learning AI Engineering.';
+
+    const prompt = `Evaluate this 60-second "Feynman Technique" learner explanation where the student tries to explain an AI Engineering concept in simple language as if teaching a curious beginner.
+
+Concept: ${topicName}
+${topicDetails}
+Time taken: ${Math.min(60, Math.max(1, Number(durationSecondsUsed) || 60))}s
+
+Student Explanation:
+"""
+${explanationText.trim()}
+"""
+
+Grading Rubric:
+1. clarityScore (0-100): How easy is it for a beginner or non-expert to follow?
+2. intuitionScore (0-100): Did they capture the core "why & how it works" intuition without hand-waving?
+3. simplicityScore (0-100): Did they avoid unexplained jargon overload? (Higher = simpler, clearer language).
+4. accuracyScore (0-100): How technically and factually accurate is the explanation (no misconceptions or false claims)?
+5. verdictHeadline: Short 5-9 word summary verdict.
+6. strengths: 2-3 specific things the student nailed.
+7. missingIntuition: 2-3 key mechanisms, intuitions, or edge cases they skipped.
+8. jargonTraps: Up to 4 technical buzzwords they used without explaining simply (empty array if none).
+9. accuracyNotes: 1-3 brief notes verifying factual accuracy or correcting any technical misconception.
+10. simplifiedAnalogy: A memorable 2-sentence analogy + plain explanation showing how Feynman would teach this topic.
+
+${langDirective}`;
+
+    const attempts: Array<{ modelName: string; useLowThinking: boolean }> = [
+      { modelName: 'gemini-4-hydrogen', useLowThinking: true },
+      { modelName: 'gemini-3.1-flash-lite', useLowThinking: false }
+    ];
+
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const attempt of attempts) {
+      try {
+        const config: any = {
+          systemInstruction:
+            'You are a Principal AI Educator & Richard Feynman mentor grading a learner explanation strictly and constructively in JSON.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              clarityScore: { type: Type.INTEGER },
+              intuitionScore: { type: Type.INTEGER },
+              simplicityScore: { type: Type.INTEGER },
+              accuracyScore: { type: Type.INTEGER },
+              verdictHeadline: { type: Type.STRING },
+              strengths: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              missingIntuition: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              jargonTraps: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              accuracyNotes: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              simplifiedAnalogy: { type: Type.STRING }
+            },
+            required: [
+              'clarityScore',
+              'intuitionScore',
+              'simplicityScore',
+              'accuracyScore',
+              'verdictHeadline',
+              'strengths',
+              'missingIntuition',
+              'jargonTraps',
+              'accuracyNotes',
+              'simplifiedAnalogy'
+            ]
+          }
+        };
+
+        if (attempt.useLowThinking) {
+          config.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+        }
+
+        response = await ai.models.generateContent({
+          model: attempt.modelName,
+          contents: prompt,
+          config
+        });
+        modelUsed = attempt.modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Feynman Gemini attempt failed (${attempt.modelName}):`, err?.message || err);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (!response) {
+      const errMsg = String(lastError?.message || 'Gemini Feynman evaluation failed');
+      const isQuota = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        res.status(429).json({
+          error:
+            'Gemini API rate limit or free-tier quota was reached. Please wait a few seconds and retry.',
+          code: 'RESOURCE_EXHAUSTED'
+        });
+        return;
+      }
+      res.status(502).json({
+        error: 'Unable to evaluate explanation via Gemini right now. Please try again shortly.'
+      });
+      return;
+    }
+
+    const rawJson = (response.text ?? '{}').trim();
+    const parsed = JSON.parse(rawJson);
+    const clampScore = (v: any) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 65;
+      return Math.min(100, Math.max(0, Math.round(n)));
+    };
+
+    res.json({
+      ok: true,
+      conceptId: matchedConcept?.id || conceptId || 'custom',
+      conceptTitle: topicName,
+      modelUsed,
+      evaluation: {
+        clarityScore: clampScore(parsed.clarityScore),
+        intuitionScore: clampScore(parsed.intuitionScore),
+        simplicityScore: clampScore(parsed.simplicityScore),
+        accuracyScore: clampScore(parsed.accuracyScore ?? parsed.intuitionScore),
+        verdictHeadline: String(parsed.verdictHeadline || 'Good explanation — see feedback below.'),
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths.map(String).slice(0, 4) : [],
+        missingIntuition: Array.isArray(parsed.missingIntuition)
+          ? parsed.missingIntuition.map(String).slice(0, 4)
+          : [],
+        jargonTraps: Array.isArray(parsed.jargonTraps) ? parsed.jargonTraps.map(String).slice(0, 5) : [],
+        accuracyNotes: Array.isArray(parsed.accuracyNotes)
+          ? parsed.accuracyNotes.map(String).slice(0, 4)
+          : [],
+        simplifiedAnalogy: String(parsed.simplifiedAnalogy || '')
+      }
+    });
+  } catch (error: any) {
+    console.error('Feynman Evaluate API Error:', error);
+    res.status(500).json({
+      error: error?.message || 'Failed to evaluate Feynman explanation'
+    });
+  }
+});
+
+/**
+ * Interactive Prompt & RAG Lab Grounded Generation API via Gemini
+ */
+app.post('/api/rag/simulate', async (req: Request, res: Response) => {
+  try {
+    const {
+      query,
+      systemPrompt = 'Answer strictly using the retrieved context. Cite chunk IDs like [Chunk 1]. If the answer is missing, say "Not found in retrieved context."',
+      retrievedChunks = [],
+      temperature = 0.2,
+      language = 'english'
+    } = req.body || {};
+
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      res.status(400).json({ error: 'Query is required for RAG simulation.' });
+      return;
+    }
+
+    const formattedContext = Array.isArray(retrievedChunks) && retrievedChunks.length > 0
+      ? retrievedChunks
+          .slice(0, 8)
+          .map((c: any, idx: number) => `[Chunk ${c.index ?? idx + 1} | score=${Number(c.score ?? 0).toFixed(2)}]\n${String(c.text || '')}`)
+          .join('\n\n---\n\n')
+      : '(No chunks were retrieved with current chunk/Top-K settings.)';
+
+    const tempVal = Number(temperature);
+    const safeTemp = Number.isFinite(tempVal) ? Math.min(1.5, Math.max(0, tempVal)) : 0.2;
+
+    const prompt = `Retrieved Context:
+${formattedContext}
+
+User Question: ${query.trim()}
+
+Instructions:
+- Follow the system prompt strictly.
+- Explicitly mention which [Chunk #] supported your answer, or explain what information is missing from the retrieved context.
+- Temperature setting observed conceptually by user: ${safeTemp.toFixed(1)} (${safeTemp > 0.7 ? 'creative/exploratory phrasing' : 'deterministic/strict grounding'}).
+- Language style: ${language === 'hinglish' ? 'Clear English technical terms with brief helpful Hinglish clarity where natural.' : 'Concise engineering English.'}`;
+
+    const attempts = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const modelName of attempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction: String(systemPrompt || 'You are a grounded RAG assistant.')
+          }
+        });
+        modelUsed = modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`RAG Lab Gemini attempt failed (${modelName}):`, err?.message || err);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (!response) {
+      const errMsg = String(lastError?.message || 'RAG simulation failed');
+      const isQuota = errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        res.status(429).json({
+          error: 'Gemini API rate limit reached. Wait a few seconds and retry.',
+          code: 'RESOURCE_EXHAUSTED'
+        });
+        return;
+      }
+      res.status(502).json({ error: 'Unable to run RAG generation right now.' });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      answer: response.text || 'No response generated.',
+      modelUsed,
+      chunksUsedCount: Array.isArray(retrievedChunks) ? retrievedChunks.length : 0
+    });
+  } catch (error: any) {
+    console.error('RAG Simulate API Error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to simulate RAG response' });
+  }
+});
+
+/**
+ * AI Mock Technical & System Design Interviewer (Scoped to unlocked completedConcepts)
+ */
+app.post('/api/interview/ask', async (req: Request, res: Response) => {
+  try {
+    const {
+      completedConcepts = [],
+      focusConceptId = '',
+      roleTarget = 'AI / LLM Engineer',
+      mode = 'system-design',
+      language = 'english',
+      previousQuestions = []
+    } = req.body || {};
+
+    const unlockedIds = new Set(Array.isArray(completedConcepts) ? completedConcepts.map(String) : []);
+    const unlockedDetails: Array<{ id: string; title: string; phaseTitle: string; description: string }> = [];
+
+    for (const phase of ROADMAP_PHASES) {
+      for (const c of phase.concepts) {
+        if (unlockedIds.has(c.id)) {
+          unlockedDetails.push({
+            id: c.id,
+            title: c.title,
+            phaseTitle: `Phase ${phase.phaseNumber}: ${phase.title}`,
+            description: c.description
+          });
+        }
+      }
+    }
+
+    const targetedPool =
+      focusConceptId && typeof focusConceptId === 'string'
+        ? unlockedDetails.filter((d) => d.id === focusConceptId)
+        : unlockedDetails;
+    const effectivePool = targetedPool.length > 0 ? targetedPool : unlockedDetails;
+
+    const scopeSummary =
+      effectivePool.length > 0
+        ? effectivePool
+            .map((d) => `- [${d.id}] ${d.title} (${d.phaseTitle}): ${d.description}`)
+            .join('\n')
+        : '- [p0-1] Linear Algebra: Vectors, Matrices, Eigenvalues & SVD\n- [p0-2] Multivariable Calculus & Gradient Descent';
+
+    const avoidList =
+      Array.isArray(previousQuestions) && previousQuestions.length > 0
+        ? `\nDo NOT repeat these recently asked questions:\n${previousQuestions.slice(0, 6).map((q: string) => `- ${q}`).join('\n')}`
+        : '';
+
+    const prompt = `Generate ONE realistic ${mode === 'system-design' ? 'AI System Design' : 'Deep Technical'} mock interview question for a candidate targeting "${roleTarget}".
+
+CRITICAL CONSTRAINT: Ask strictly ONLY about concepts present in the candidate's UNLOCKED Syllabus below. Do not ask about unstudied topics!
+Unlocked Concepts:
+${scopeSummary}
+${avoidList}
+
+Requirements:
+- Make it scenario-based and engineering-focused (e.g., scale constraints, failure modes, trade-offs, memory/latency math).
+- Return focusConceptId matching one of the bracketed IDs above (e.g. "${effectivePool[0]?.id || 'p0-1'}").
+- Language: ${language === 'hinglish' ? 'Crisp technical English question with optional brief Hinglish scenario framing.' : 'Crisp staff-engineer interview English.'}`;
+
+    const attempts = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const modelName of attempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction:
+              'You are a Staff AI Engineer conducting a rigorous technical interview strictly calibrated to the candidate syllabus in JSON.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING },
+                focusConceptId: { type: Type.STRING },
+                focusConceptTitle: { type: Type.STRING },
+                constraints: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING }
+                },
+                hint: { type: Type.STRING }
+              },
+              required: ['question', 'focusConceptId', 'focusConceptTitle', 'constraints', 'hint']
+            }
+          }
+        });
+        modelUsed = modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    if (!response) {
+      const msg = String(lastError?.message || 'Failed to generate interview question');
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        res.status(429).json({ error: 'Gemini API rate limit reached. Wait a moment and retry.' });
+        return;
+      }
+      res.status(502).json({ error: 'Unable to generate mock interview question right now.' });
+      return;
+    }
+
+    const parsed = JSON.parse((response.text ?? '{}').trim());
+    res.json({
+      ok: true,
+      modelUsed,
+      unlockedCount: unlockedDetails.length,
+      promptData: {
+        question: String(parsed.question || 'Explain the core trade-offs in your unlocked AI concept.'),
+        focusConceptId: String(parsed.focusConceptId || unlockedDetails[0]?.id || 'p0-1'),
+        focusConceptTitle: String(parsed.focusConceptTitle || unlockedDetails[0]?.title || 'AI Foundations'),
+        constraints: Array.isArray(parsed.constraints) ? parsed.constraints.map(String).slice(0, 4) : [],
+        hint: String(parsed.hint || 'Walk through assumptions, bottlenecks, and concrete failure modes.')
+      }
+    });
+  } catch (error: any) {
+    console.error('Interview Ask Error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to create interview question' });
+  }
+});
+
+app.post('/api/interview/evaluate', async (req: Request, res: Response) => {
+  try {
+    const {
+      question,
+      focusConceptTitle = '',
+      answerText,
+      language = 'english'
+    } = req.body || {};
+
+    if (!question || !answerText || typeof answerText !== 'string' || answerText.trim().length < 20) {
+      res.status(400).json({ error: 'Please write a structured engineering answer (at least 20 characters).' });
+      return;
+    }
+
+    const prompt = `Evaluate this AI Engineering mock interview answer.
+
+Question (${focusConceptTitle}):
+"${String(question)}"
+
+Candidate Answer:
+"""
+${answerText.trim()}
+"""
+
+Score strictly on 3 axes (0-100 each):
+1. depthScore: Engineering depth, concrete mechanisms, math/memory/latency awareness.
+2. edgeCasesScore: Failure modes, scaling bottlenecks, trade-offs, boundary conditions.
+3. clarityScore: Structure, precision, communication polish.
+
+Also provide:
+- overallVerdict: Crisp 4-8 word hiring-bar signal (e.g. "Strong Mid-Level Signal · Needs Scale Metrics")
+- strongPoints: 2-3 strengths
+- missedPoints: 2-3 critical angles or edge cases missed
+- followUpQuestion: 1 sharp realistic follow-up question probing deeper into their answer
+- modelOutline: A concise 3-4 sentence senior-engineer reference outline.
+Language: ${language === 'hinglish' ? 'Clear technical English with natural Hinglish coaching tips where helpful.' : 'Concise senior engineering English.'}`;
+
+    const attempts = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const modelName of attempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction:
+              'You are a Principal AI Interview Bar-Raiser returning strict calibrated interview feedback in JSON.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                depthScore: { type: Type.INTEGER },
+                edgeCasesScore: { type: Type.INTEGER },
+                clarityScore: { type: Type.INTEGER },
+                overallVerdict: { type: Type.STRING },
+                strongPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                missedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                followUpQuestion: { type: Type.STRING },
+                modelOutline: { type: Type.STRING }
+              },
+              required: [
+                'depthScore',
+                'edgeCasesScore',
+                'clarityScore',
+                'overallVerdict',
+                'strongPoints',
+                'missedPoints',
+                'followUpQuestion',
+                'modelOutline'
+              ]
+            }
+          }
+        });
+        modelUsed = modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    if (!response) {
+      const msg = String(lastError?.message || 'Evaluation failed');
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        res.status(429).json({ error: 'Gemini API rate limit reached. Please retry shortly.' });
+        return;
+      }
+      res.status(502).json({ error: 'Unable to evaluate interview answer right now.' });
+      return;
+    }
+
+    const parsed = JSON.parse((response.text ?? '{}').trim());
+    const clamp = (n: any) => Math.min(100, Math.max(0, Math.round(Number(n) || 60)));
+
+    res.json({
+      ok: true,
+      modelUsed,
+      evaluation: {
+        depthScore: clamp(parsed.depthScore),
+        edgeCasesScore: clamp(parsed.edgeCasesScore),
+        clarityScore: clamp(parsed.clarityScore),
+        overallVerdict: String(parsed.overallVerdict || 'Evaluated'),
+        strongPoints: Array.isArray(parsed.strongPoints) ? parsed.strongPoints.map(String).slice(0, 4) : [],
+        missedPoints: Array.isArray(parsed.missedPoints) ? parsed.missedPoints.map(String).slice(0, 4) : [],
+        followUpQuestion: String(parsed.followUpQuestion || ''),
+        modelOutline: String(parsed.modelOutline || '')
+      }
+    });
+  } catch (error: any) {
+    console.error('Interview Evaluate Error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to evaluate interview response' });
+  }
+});
+
+/**
  * Text-to-Image Creation & Editing API using gemini-nano-banana-2.1
  */
 app.post('/api/generate-image', async (req: Request, res: Response) => {

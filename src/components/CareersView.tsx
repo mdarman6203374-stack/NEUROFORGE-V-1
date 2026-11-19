@@ -10,16 +10,39 @@ import {
   Target,
   Sparkles,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageSquare,
+  FileText
 } from 'lucide-react';
 import { CAREER_ROLES_DATA } from '../data/careerData';
-import { Language } from '../types';
+import { Language, SchedulePace, StreakState } from '../types';
+import { MockAiInterviewer } from './MockAiInterviewer';
+import { LivePortfolioBuilder } from './LivePortfolioBuilder';
 
 interface CareersViewProps {
   language: Language;
+  completedConcepts?: string[];
+  completedDays?: number[];
+  pace?: SchedulePace;
+  streakState?: StreakState;
+  userEmail?: string | null;
 }
 
-export const CareersView: React.FC<CareersViewProps> = ({ language }) => {
+export const CareersView: React.FC<CareersViewProps> = ({
+  language,
+  completedConcepts = ['p0-1', 'p0-2'],
+  completedDays = [1, 2, 3],
+  pace = '20-months',
+  streakState = {
+    currentStreak: 3,
+    longestStreak: 5,
+    lastCompletedDate: new Date().toISOString().split('T')[0],
+    historyDates: [],
+    celebratedMilestones: []
+  },
+  userEmail = null
+}) => {
+  const [careerTab, setCareerTab] = useState<'roles' | 'interviewer' | 'portfolio'>('roles');
   const [selectedRoleId, setSelectedRoleId] = useState<string>('ai-llm-engineer');
   const [userSkills, setUserSkills] = useState<string[]>([
     'Python 3.12',
@@ -73,23 +96,81 @@ export const CareersView: React.FC<CareersViewProps> = ({ language }) => {
             : 'Explore high-paying career trajectories in AI engineering. Compare salary benchmarks (Global USD & Indian INR), top hiring industries, essential tech stacks, and practice technical interview questions with deep explanations.'}
         </p>
 
-        {/* Quick Highlights */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800 text-xs">
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span>Average Compensation: $135k - $220k+ / ₹20L - ₹50L+</span>
+        {/* Quick Highlights + Career Studio Mode Switcher */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-3 border-t border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <span>$135k–$220k+ / ₹20L–₹50L+</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-amber-400" />
+              <span>{completedConcepts.length} Concepts Unlocked</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-indigo-400" />
+              <span>Interview & Dossier Ready</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-amber-400" />
-            <span>Fastest Growing: AI Agent Architects & LLM Ops</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-indigo-400" />
-            <span>Interactive Skill Matcher Below</span>
+
+          <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl bg-slate-950/80 border border-slate-800 shrink-0">
+            <button
+              type="button"
+              onClick={() => setCareerTab('roles')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                careerTab === 'roles'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Job Roles & Fit</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCareerTab('interviewer')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                careerTab === 'interviewer'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>AI Technical Interviewer</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCareerTab('portfolio')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                careerTab === 'portfolio'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Live Portfolio & Dossier</span>
+            </button>
           </div>
         </div>
       </div>
 
+      {careerTab === 'interviewer' && (
+        <MockAiInterviewer completedConcepts={completedConcepts} language={language} />
+      )}
+
+      {careerTab === 'portfolio' && (
+        <LivePortfolioBuilder
+          completedConcepts={completedConcepts}
+          completedDays={completedDays}
+          pace={pace}
+          streakState={streakState}
+          language={language}
+          userEmail={userEmail}
+        />
+      )}
+
+      {careerTab === 'roles' && (
+        <>
       {/* Interactive Skill Matcher Tool */}
       <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -329,6 +410,8 @@ export const CareersView: React.FC<CareersViewProps> = ({ language }) => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

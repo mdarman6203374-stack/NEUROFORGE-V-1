@@ -120,6 +120,30 @@ export const API_ENDPOINTS_CATALOG = [
     sample: '/api/v1/focus/session'
   },
   {
+    method: 'POST',
+    path: '/api/feynman/evaluate',
+    summary: 'Grade a 60-second Feynman Technique learner explanation via Gemini',
+    sample: '/api/feynman/evaluate'
+  },
+  {
+    method: 'POST',
+    path: '/api/rag/simulate',
+    summary: 'Run grounded RAG answer generation over retrieved chunks via Gemini',
+    sample: '/api/rag/simulate'
+  },
+  {
+    method: 'POST',
+    path: '/api/interview/ask',
+    summary: 'Generate mock ML/LLM technical interview question scoped to unlocked completedConcepts',
+    sample: '/api/interview/ask'
+  },
+  {
+    method: 'POST',
+    path: '/api/interview/evaluate',
+    summary: 'Score interview response across Depth, Edge Cases, and Clarity via Gemini',
+    sample: '/api/interview/evaluate'
+  },
+  {
     method: 'GET',
     path: '/api/v1/quotes/daily',
     summary: 'Fetch daily inspirational AI & technology quote (?random=true, ?exclude=id)',

@@ -35,6 +35,7 @@ interface RoadmapViewProps {
   toggleConcept: (id: string) => void;
   onSelectProject: (proj: ProjectDetails) => void;
   language: Language;
+  onOpenRagLab?: () => void;
 }
 
 const POPULAR_SEARCH_TAGS = [
@@ -55,7 +56,8 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
   completedDays,
   toggleConcept,
   onSelectProject,
-  language
+  language,
+  onOpenRagLab
 }) => {
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>('phase-0');
   const [selectedConceptId, setSelectedConceptId] = useState<string>(
@@ -800,6 +802,34 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Interactive Prompt & RAG Lab Shortcut inside Phase 4–5 */}
+            {onOpenRagLab && (selectedPhase.phaseNumber === 4 || selectedPhase.phaseNumber === 5) && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-600/10 via-purple-600/10 to-emerald-600/10 border border-indigo-300 dark:border-indigo-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Interactive Phase 4–5 Playground</span>
+                  </div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    {language === 'hinglish'
+                      ? 'Prompt & RAG Lab: Live Chunk Size, Overlap aur Top-K Experiment Karein'
+                      : 'Interactive Prompt & RAG Lab — Tweak Chunk Size, Overlap & Top-K Live'}
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Inspect visually why vector retrieval succeeds or fails across sample AI docs and test grounded Gemini answers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenRagLab}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+                >
+                  <span>Open RAG Lab</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Core Concepts Breakdown with Filtered Items & Checkboxes */}
             <div className="space-y-3">

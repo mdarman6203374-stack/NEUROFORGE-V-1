@@ -20,6 +20,8 @@ import { LoadingPage } from './components/LoadingPage';
 import { ScheduleQuickTabs } from './components/ScheduleQuickTabs';
 import { AchievementsView } from './components/AchievementsView';
 import { DailyQuoteBanner } from './components/DailyQuoteBanner';
+import { MemoryRetentionView } from './components/MemoryRetentionView';
+import { CodeRagLabView } from './components/CodeRagLabView';
 import { useAuth } from './firebase/authContext';
 import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
@@ -117,6 +119,8 @@ export default function App() {
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState<boolean>(false);
   const [isApiDocsOpen, setIsApiDocsOpen] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [memoryLabSubTab, setMemoryLabSubTab] = useState<'srs' | 'feynman'>('srs');
+  const [codeLabSubTab, setCodeLabSubTab] = useState<'python' | 'rag' | 'bugs'>('python');
 
   // Exit Focus Mode when leaving Daily Planner or pressing Escape
   useEffect(() => {
@@ -557,6 +561,11 @@ export default function App() {
             toggleConcept={toggleConcept}
             onSelectProject={setSelectedProject}
             language={language}
+            onOpenRagLab={() => {
+              setCodeLabSubTab('rag');
+              setActiveTab('code-rag-lab');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
 
@@ -588,6 +597,17 @@ export default function App() {
             onShowInAppReminder={(title, body) => setInAppReminderToast({ title, body })}
             isFocusMode={isFocusMode}
             onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
+            completedConcepts={completedConcepts}
+            onNavigateMemoryLab={(subTab) => {
+              setMemoryLabSubTab(subTab || 'srs');
+              setActiveTab('memory-lab');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenCodeLab={(subTab) => {
+              setCodeLabSubTab(subTab || 'python');
+              setActiveTab('code-rag-lab');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             onExportProgressPdf={() =>
               generateProgressAndNotesPdf({
                 pace,
@@ -598,6 +618,21 @@ export default function App() {
                 userEmail: user?.email || null
               })
             }
+          />
+        )}
+
+        {activeTab === 'memory-lab' && (
+          <MemoryRetentionView
+            completedConcepts={completedConcepts}
+            language={language}
+            initialSubTab={memoryLabSubTab}
+          />
+        )}
+
+        {activeTab === 'code-rag-lab' && (
+          <CodeRagLabView
+            language={language}
+            initialSubTab={codeLabSubTab}
           />
         )}
 
@@ -635,7 +670,14 @@ export default function App() {
         )}
 
         {activeTab === 'careers' && (
-          <CareersView language={language} />
+          <CareersView
+            language={language}
+            completedConcepts={completedConcepts}
+            completedDays={completedDays}
+            pace={pace}
+            streakState={streakState}
+            userEmail={user?.email || null}
+          />
         )}
 
         {activeTab === 'future-outlook' && (
@@ -673,6 +715,18 @@ export default function App() {
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 03 Daily Planner
+              </button>
+              <button
+                onClick={() => setActiveTab('memory-lab')}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
+              >
+                Memory Lab
+              </button>
+              <button
+                onClick={() => setActiveTab('code-rag-lab')}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
+              >
+                Code & RAG Lab
               </button>
               <button
                 onClick={() => setActiveTab('hindi-playlists')}
