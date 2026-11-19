@@ -8,9 +8,11 @@ export interface SRSCard {
   phaseNumber: number;
   conceptTitle: string;
   prompt: string;
+  hint?: string;
   answer: string;
   hinglishAnswer?: string;
-  source: 'concept-milestone' | 'weak-quiz' | 'custom';
+  challengeType?: string;
+  source: 'concept-milestone' | 'weak-quiz' | 'custom' | 'ai-generated';
   milestoneStage: 3 | 7 | 21 | 60;
   repetitions: number;
   intervalDays: number;
@@ -355,4 +357,58 @@ export function addCustomSrsCard(
   const next = [newCard, ...cards];
   saveSrsCards(next);
   return next;
+}
+
+export interface GeneratedFlashcardPayload {
+  conceptId: string;
+  conceptTitle: string;
+  phaseNumber: number;
+  challengeType?: string;
+  prompt: string;
+  hint?: string;
+  answer: string;
+  hinglishAnswer?: string;
+}
+
+export function addGeneratedSrsCards(
+  generated: GeneratedFlashcardPayload[]
+): { cards: SRSCard[]; addedCount: number; firstNewId: string | null } {
+  const today = getTodayIso();
+  const existing = loadSrsCards();
+  const existingPrompts = new Set(existing.map((c) => c.prompt.trim().toLowerCase()));
+
+  const freshCards: SRSCard[] = [];
+  generated.forEach((item, idx) => {
+    const cleanPrompt = item.prompt.trim();
+    if (!cleanPrompt || existingPrompts.has(cleanPrompt.toLowerCase())) {
+      return;
+    }
+    existingPrompts.add(cleanPrompt.toLowerCase());
+    freshCards.push({
+      id: `ai-srs-${item.conceptId}-${Date.now()}-${idx}`,
+      conceptId: item.conceptId,
+      phaseNumber: item.phaseNumber,
+      conceptTitle: item.conceptTitle,
+      challengeType: item.challengeType || 'AI Challenge',
+      prompt: cleanPrompt,
+      hint: item.hint?.trim() || undefined,
+      answer: item.answer.trim(),
+      hinglishAnswer: item.hinglishAnswer?.trim() || undefined,
+      source: 'ai-generated',
+      milestoneStage: 3,
+      repetitions: 0,
+      intervalDays: 3,
+      easeFactor: 2.5,
+      dueDate: today,
+      lapseCount: 0
+    });
+  });
+
+  const next = [...freshCards, ...existing];
+  saveSrsCards(next);
+  return {
+    cards: next,
+    addedCount: freshCards.length,
+    firstNewId: freshCards[0]?.id || null
+  };
 }

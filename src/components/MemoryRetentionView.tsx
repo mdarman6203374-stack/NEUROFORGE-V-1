@@ -13,7 +13,9 @@ import {
   Plus,
   Clock,
   Layers,
-  Award
+  Award,
+  Loader2,
+  Lightbulb
 } from 'lucide-react';
 import { ROADMAP_PHASES } from '../data/roadmapData';
 import { Language } from '../types';
@@ -26,6 +28,7 @@ import {
   reviewSrsCard,
   previewNextIntervalDays,
   addCustomSrsCard,
+  addGeneratedSrsCards,
   loadFeynmanHistory,
   saveFeynmanAttempt,
   markWarmupCompletedToday
@@ -48,9 +51,19 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
   const [cards, setCards] = useState<SRSCard[]>(() =>
     syncCompletedConceptsToSrs(completedConcepts)
   );
-  const [srsFilter, setSrsFilter] = useState<'due' | 'weak' | 'all'>('due');
+  const [srsFilter, setSrsFilter] = useState<'due' | 'weak' | 'ai' | 'all'>('due');
   const [selectedCardIdx, setSelectedCardIdx] = useState<number>(0);
   const [isCardFlipped, setIsCardFlipped] = useState<boolean>(false);
+  const [showCardHint, setShowCardHint] = useState<boolean>(false);
+  const [userRecallAttempt, setUserRecallAttempt] = useState<string>('');
+
+  // Gemini AI Flashcard Challenge Generator State
+  const [aiScopeConceptId, setAiScopeConceptId] = useState<string>('all-completed');
+  const [aiChallengeStyle, setAiChallengeStyle] = useState<'mixed' | 'intuition' | 'scenario' | 'math-code'>('mixed');
+  const [aiCardCount, setAiCardCount] = useState<number>(4);
+  const [isGeneratingCards, setIsGeneratingCards] = useState<boolean>(false);
+  const [aiGenError, setAiGenError] = useState<string | null>(null);
+  const [aiGenNotice, setAiGenNotice] = useState<string | null>(null);
 
   // Quick Custom Card Builder
   const [showAddCard, setShowAddCard] = useState<boolean>(false);
@@ -247,11 +260,14 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
   // Filtered SRS cards
   const dueCards = cards.filter(isCardDueToday);
   const weakQuizCards = cards.filter((c) => c.source === 'weak-quiz');
+  const aiGeneratedCards = cards.filter((c) => c.source === 'ai-generated');
   const filteredCards =
     srsFilter === 'due'
       ? dueCards
       : srsFilter === 'weak'
       ? weakQuizCards
+      : srsFilter === 'ai'
+      ? aiGeneratedCards
       : cards;
 
   const safeIdx =
@@ -263,6 +279,8 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
     const nextCards = reviewSrsCard(activeCard.id, rating);
     setCards(nextCards);
     setIsCardFlipped(false);
+    setShowCardHint(false);
+    setUserRecallAttempt('');
     setSelectedCardIdx(0);
     if (nextCards.filter(isCardDueToday).length === 0) {
       markWarmupCompletedToday();
@@ -285,7 +303,69 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
     setNewPrompt('');
     setNewAnswer('');
     setShowAddCard(false);
+    setShowCardHint(false);
+    setUserRecallAttempt('');
     setSrsFilter('due');
+  };
+
+  const handleGenerateAiFlashcards = async () => {
+    setAiGenError(null);
+    setAiGenNotice(null);
+
+    const targetPool =
+      aiScopeConceptId === 'all-completed'
+        ? selectableConcepts
+        : selectableConcepts.filter((c) => c.id === aiScopeConceptId);
+
+    if (targetPool.length === 0) {
+      setAiGenError('Complete at least one roadmap concept first to generate AI recall challenges.');
+      return;
+    }
+
+    // Shuffle pool slightly when generating from multiple completed concepts so fresh mixes appear
+    const orderedPool =
+      targetPool.length > 1
+        ? [...targetPool].sort(() => Math.random() - 0.5).slice(0, 8)
+        : targetPool;
+
+    setIsGeneratingCards(true);
+    try {
+      const res = await fetch('/api/flashcards/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          concepts: orderedPool.map((c) => ({
+            id: c.id,
+            phaseNumber: c.phaseNumber,
+            title: c.title,
+            description: c.description
+          })),
+          count: aiCardCount,
+          challengeStyle: aiChallengeStyle,
+          language
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to generate AI flashcards.');
+      }
+
+      const { cards: nextCards, addedCount } = addGeneratedSrsCards(data.cards || []);
+      setCards(nextCards);
+      setSrsFilter('ai');
+      setSelectedCardIdx(0);
+      setIsCardFlipped(false);
+      setShowCardHint(false);
+      setUserRecallAttempt('');
+      setAiGenNotice(
+        `Generated ${addedCount} dynamic Gemini recall challenge${addedCount === 1 ? '' : 's'} (${data.modelUsed || 'gemini-4-hydrogen'}).`
+      );
+    } catch (err: any) {
+      setAiGenError(err?.message || 'Unable to generate Gemini flashcards right now.');
+    } finally {
+      setIsGeneratingCards(false);
+    }
   };
 
   const stageCounts = {
@@ -371,16 +451,109 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
 
       {subTab === 'srs' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left: Filter & Active Card Player */}
+          {/* Left: Gemini Challenge Generator + Filter + Active Card Player */}
           <div className="lg:col-span-8 space-y-4">
+            {/* Gemini Dynamic Concept Flashcard Generator */}
+            <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Gemini Dynamic Active-Recall Generator</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {completedConceptList.length > 0
+                      ? `Generate fresh challenge questions strictly from your ${completedConceptList.length} completed concepts.`
+                      : 'Generate sample active-recall challenges from Phase 0 foundations or unlock more concepts in Roadmap.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isGeneratingCards}
+                  onClick={handleGenerateAiFlashcards}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white shadow-xs transition-colors cursor-pointer shrink-0"
+                >
+                  {isGeneratingCards ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Generating Challenges...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generate {aiCardCount} AI Cards</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select
+                  aria-label="Select completed concept scope"
+                  value={aiScopeConceptId}
+                  onChange={(e) => setAiScopeConceptId(e.target.value)}
+                  className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all-completed">
+                    All Completed ({selectableConcepts.length} concepts)
+                  </option>
+                  {selectableConcepts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      Phase {c.phaseNumber} · {c.title}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  aria-label="Select challenge focus"
+                  value={aiChallengeStyle}
+                  onChange={(e) => setAiChallengeStyle(e.target.value as any)}
+                  className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="mixed">Style: Mixed Active Recall</option>
+                  <option value="intuition">Style: First-Principles Why</option>
+                  <option value="scenario">Style: Production Failure & Trade-offs</option>
+                  <option value="math-code">Style: Math Shapes & Code Drills</option>
+                </select>
+
+                <select
+                  aria-label="Select card count"
+                  value={aiCardCount}
+                  onChange={(e) => setAiCardCount(Number(e.target.value))}
+                  className="px-2.5 py-1.5 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value={3}>Batch: 3 Dynamic Cards</option>
+                  <option value={4}>Batch: 4 Dynamic Cards</option>
+                  <option value={6}>Batch: 6 Dynamic Cards</option>
+                </select>
+              </div>
+
+              {aiGenError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{aiGenError}</span>
+                </div>
+              )}
+
+              {aiGenNotice && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{aiGenNotice}</span>
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
                 <button
                   type="button"
                   onClick={() => {
                     setSrsFilter('due');
                     setSelectedCardIdx(0);
                     setIsCardFlipped(false);
+                    setShowCardHint(false);
+                    setUserRecallAttempt('');
                   }}
                   className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
                     srsFilter === 'due'
@@ -393,9 +566,28 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    setSrsFilter('ai');
+                    setSelectedCardIdx(0);
+                    setIsCardFlipped(false);
+                    setShowCardHint(false);
+                    setUserRecallAttempt('');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+                    srsFilter === 'ai'
+                      ? 'bg-violet-600 text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  AI Challenges ({aiGeneratedCards.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setSrsFilter('weak');
                     setSelectedCardIdx(0);
                     setIsCardFlipped(false);
+                    setShowCardHint(false);
+                    setUserRecallAttempt('');
                   }}
                   className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
                     srsFilter === 'weak'
@@ -403,7 +595,7 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  Weak Quiz Spots ({weakQuizCards.length})
+                  Weak Quiz ({weakQuizCards.length})
                 </button>
                 <button
                   type="button"
@@ -411,6 +603,8 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                     setSrsFilter('all');
                     setSelectedCardIdx(0);
                     setIsCardFlipped(false);
+                    setShowCardHint(false);
+                    setUserRecallAttempt('');
                   }}
                   className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
                     srsFilter === 'all'
@@ -418,7 +612,7 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  All Cards ({cards.length})
+                  All ({cards.length})
                 </button>
               </div>
 
@@ -483,11 +677,15 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                       className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
                         activeCard.source === 'weak-quiz'
                           ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                          : activeCard.source === 'ai-generated'
+                          ? 'bg-violet-100 dark:bg-violet-950 text-violet-800 dark:text-violet-300'
                           : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
                       }`}
                     >
                       {activeCard.source === 'weak-quiz'
                         ? 'WEAK QUIZ RECOVERY'
+                        : activeCard.source === 'ai-generated'
+                        ? `GEMINI · ${(activeCard.challengeType || 'ACTIVE RECALL').toUpperCase()}`
                         : `MILESTONE ${activeCard.milestoneStage}D`}
                     </span>
                     <span className="font-mono text-slate-500 dark:text-slate-400">
@@ -508,17 +706,69 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                   </h2>
                 </div>
 
+                {/* Optional Hint Toggle & Active Recall Self-Check Scratch Area */}
+                {!isCardFlipped && (
+                  <div className="space-y-3">
+                    {activeCard.hint && (
+                      <div>
+                        {showCardHint ? (
+                          <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                            <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Hint:</strong> {activeCard.hint}
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowCardHint(true)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                          >
+                            <Lightbulb className="w-3.5 h-3.5" />
+                            <span>Need a subtle hint before flipping?</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    <textarea
+                      rows={2}
+                      value={userRecallAttempt}
+                      onChange={(e) => setUserRecallAttempt(e.target.value)}
+                      placeholder={
+                        language === 'hinglish'
+                          ? '(Optional) Flip karne se pehle apna quick answer yahan likhkar recall test karein...'
+                          : '(Optional) Jot down your quick answer from memory before flipping to compare...'
+                      }
+                      className="w-full p-3 text-xs rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+                    />
+                  </div>
+                )}
+
                 {isCardFlipped ? (
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+                    {userRecallAttempt.trim() && (
+                      <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                        <div className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider">
+                          Your Recall Attempt
+                        </div>
+                        <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                          {userRecallAttempt.trim()}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       Answer & Intuition
                     </div>
                     <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
                       {activeCard.answer}
                     </p>
-                    {language === 'hinglish' && activeCard.hinglishAnswer && (
+                    {activeCard.hinglishAnswer && (
                       <div className="p-3 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900 text-xs text-indigo-950 dark:text-indigo-200">
-                        <span className="font-bold">Hinglish Intuition: </span>
+                        <span className="font-bold">
+                          {language === 'hinglish' ? 'Hinglish Intuition: ' : 'Core Takeaway: '}
+                        </span>
                         {activeCard.hinglishAnswer}
                       </div>
                     )}
@@ -571,10 +821,14 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   {srsFilter === 'weak'
                     ? 'No Weak Quick-Quiz Spots Queued!'
+                    : srsFilter === 'ai'
+                    ? 'No Gemini AI Challenges Generated Yet'
                     : 'Queue Cleared for Today!'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                  Switch to &quot;All Cards&quot; to preview upcoming reviews, take a Quick Quiz in Roadmap, or practice a 60-second Feynman explanation.
+                  {srsFilter === 'ai'
+                    ? 'Click "Generate AI Cards" above to create concept-specific active recall challenges from your completedConcepts.'
+                    : 'Generate fresh Gemini AI Cards above, switch to "All" cards, or practice a 60-second Feynman explanation.'}
                 </p>
               </div>
             )}
@@ -586,7 +840,7 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
               <span>Queue Explorer</span>
               <span className="font-mono">{filteredCards.length} items</span>
             </div>
-            <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
               {filteredCards.map((c, idx) => {
                 const isSelected = idx === safeIdx;
                 return (
@@ -596,6 +850,8 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                     onClick={() => {
                       setSelectedCardIdx(idx);
                       setIsCardFlipped(false);
+                      setShowCardHint(false);
+                      setUserRecallAttempt('');
                     }}
                     className={`w-full text-left p-3 rounded-xl border text-xs transition-colors cursor-pointer space-y-1 ${
                       isSelected
@@ -608,10 +864,16 @@ export const MemoryRetentionView: React.FC<MemoryRetentionViewProps> = ({
                         className={
                           c.source === 'weak-quiz'
                             ? 'text-amber-600 dark:text-amber-400 font-bold'
+                            : c.source === 'ai-generated'
+                            ? 'text-violet-600 dark:text-violet-400 font-bold'
                             : 'text-indigo-600 dark:text-indigo-400 font-bold'
                         }
                       >
-                        {c.source === 'weak-quiz' ? 'WEAK SPOT' : `${c.intervalDays}D INTERVAL`}
+                        {c.source === 'weak-quiz'
+                          ? 'WEAK SPOT'
+                          : c.source === 'ai-generated'
+                          ? 'AI RECALL'
+                          : `${c.intervalDays}D INTERVAL`}
                       </span>
                       <span className="text-slate-400">Due {c.dueDate}</span>
                     </div>

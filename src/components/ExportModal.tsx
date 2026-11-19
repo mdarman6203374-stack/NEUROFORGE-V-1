@@ -242,7 +242,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       if (!backupObj) {
         backupObj = {
-          app: 'SynapseLab AI Engineering Studio',
+          app: 'TensorPlay AI Interactive Playground',
           schemaVersion: 2,
           createdAt: new Date().toISOString(),
           storageBackend: 'local-snapshot',

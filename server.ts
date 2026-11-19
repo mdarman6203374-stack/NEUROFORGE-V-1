@@ -21,7 +21,7 @@ app.use(express.json({ limit: '35mb' }));
 app.use('/api/v1', v1Router);
 app.get('/api', (_req: Request, res: Response) => {
   res.json({
-    name: 'SynapseLab AI Engineering Studio API',
+    name: 'TensorPlay AI Engineering Playground API',
     version: '1.0.0',
     v1Base: '/api/v1',
     endpoints: API_ENDPOINTS_CATALOG,
@@ -39,7 +39,7 @@ const ai = new GoogleGenAI({
 });
 
 // Chatbot role system instructions
-const SYSTEM_INSTRUCTION = `You are "SynapseMentor", an elite Principal AI Engineer and dedicated interactive learning mentor on the SynapseLab AI platform.
+const SYSTEM_INSTRUCTION = `You are "TensorMentor", an elite Principal AI Engineer and dedicated interactive learning mentor on the TensorPlay AI platform.
 Your mission is to guide learners to achieve world-class AI engineering mastery across Mathematics, Classical ML, Deep Learning, Transformer Architectures, Production RAG, Autonomous Multi-Agent Swarms, Fine-Tuning & Quantization, MLOps, and 2025-2028 Future Frontiers (Reasoning models, Test-Time Compute, Edge SLMs).
 
 Guidelines:
@@ -901,6 +901,281 @@ Language: ${language === 'hinglish' ? 'Clear technical English with natural Hing
 });
 
 /**
+ * Fine-Tuning vs. RAG vs. Agents System Design Architecture Review API
+ */
+app.post('/api/architecture/review', async (req: Request, res: Response) => {
+  try {
+    const {
+      constraints,
+      selectedArchitecture,
+      recommendedArchitecture,
+      localWarnings = [],
+      customScenario = '',
+      language = 'english',
+    } = req.body || {};
+
+    if (!constraints || !selectedArchitecture) {
+      res.status(400).json({ error: 'constraints and selectedArchitecture are required' });
+      return;
+    }
+
+    const prompt = `You are a Principal AI Systems Architect reviewing an AI engineering trade-off decision.
+
+System Constraints:
+- Data Freshness: ${constraints.dataFreshness}
+- Budget Tier: ${constraints.budget}
+- Latency SLA: ${constraints.latency}
+- Hallucination Tolerance: ${constraints.hallucinationTolerance}
+- Privacy / Compliance / PII: ${constraints.privacy}
+- Labeled Dataset Size: ${constraints.labeledData}
+${customScenario ? `- Specific Product Use-Case: "${String(customScenario).slice(0, 500)}"` : ''}
+
+Candidate Proposed Architecture: ${selectedArchitecture}
+Heuristic Optimal Architecture: ${recommendedArchitecture || 'Not specified'}
+Detected Static Failure-Mode Flags: ${Array.isArray(localWarnings) && localWarnings.length > 0 ? localWarnings.join(' | ') : 'None'}
+
+Critique this decision strictly on engineering pragmatism, cost discipline (avoiding LoRA/agent over-engineering when Hybrid RAG + reranking or prompt caching wins), latency math, and production failure modes.
+Language: ${language === 'hinglish' ? 'Clear technical English with crisp Hinglish coaching notes where natural.' : 'Crisp senior systems engineering English.'}
+
+Return valid JSON matching the schema:
+- verdict: one of "Optimal Choice", "Over-Engineered", "Under-Engineered", or "Risky Mismatch"
+- fitScore: integer 0-100 for the candidate proposed architecture under these exact constraints
+- recommendedArchitecture: concise name of the single best architecture stack
+- costSavingsInsight: 1-2 sentences quantifying cost/complexity impact (e.g. why Hybrid Search + Reranking saves ~90% vs training/hosting dedicated QLoRA GPUs, or when Fine-Tuning truly pays off)
+- failureModes: 2-4 concrete failure scenarios likely in production under these constraints
+- blueprintSteps: 4-5 ordered production pipeline steps tailored to privacy (${constraints.privacy}) and latency (${constraints.latency})
+- whyNotAlternatives: 2 concise bullets explaining why the main competing paradigms lose for these exact constraints`;
+
+    const attempts = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const modelName of attempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction:
+              'You are a pragmatic Principal AI Systems Architect preventing over-engineering and designing resilient RAG, Fine-Tuning, and Agentic architectures.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                verdict: { type: Type.STRING },
+                fitScore: { type: Type.INTEGER },
+                recommendedArchitecture: { type: Type.STRING },
+                costSavingsInsight: { type: Type.STRING },
+                failureModes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                blueprintSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+                whyNotAlternatives: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              required: [
+                'verdict',
+                'fitScore',
+                'recommendedArchitecture',
+                'costSavingsInsight',
+                'failureModes',
+                'blueprintSteps',
+                'whyNotAlternatives'
+              ]
+            }
+          }
+        });
+        modelUsed = modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    if (!response) {
+      const msg = String(lastError?.message || 'Architecture review failed');
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        res.status(429).json({ error: 'Gemini API rate limit reached. Please try again in a moment.' });
+        return;
+      }
+      if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API_KEY_INVALID')) {
+        res.status(403).json({ error: 'Gemini API key error. Check your key in Settings > Secrets.' });
+        return;
+      }
+      res.status(502).json({ error: 'Unable to run Gemini architecture review right now.' });
+      return;
+    }
+
+    const parsed = JSON.parse((response.text ?? '{}').trim());
+    const clamp = (n: any) => Math.min(100, Math.max(0, Math.round(Number(n) || 60)));
+
+    res.json({
+      ok: true,
+      modelUsed,
+      review: {
+        verdict: String(parsed.verdict || 'Evaluated'),
+        fitScore: clamp(parsed.fitScore),
+        recommendedArchitecture: String(parsed.recommendedArchitecture || recommendedArchitecture || selectedArchitecture),
+        costSavingsInsight: String(parsed.costSavingsInsight || ''),
+        failureModes: Array.isArray(parsed.failureModes) ? parsed.failureModes.map(String).slice(0, 5) : [],
+        blueprintSteps: Array.isArray(parsed.blueprintSteps) ? parsed.blueprintSteps.map(String).slice(0, 6) : [],
+        whyNotAlternatives: Array.isArray(parsed.whyNotAlternatives)
+          ? parsed.whyNotAlternatives.map(String).slice(0, 4)
+          : []
+      }
+    });
+  } catch (error: any) {
+    console.error('Architecture Review Error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to review system architecture' });
+  }
+});
+
+/**
+ * Dynamic Active-Recall Flashcards Generator API driven by user's completedConcepts
+ */
+app.post('/api/flashcards/generate', async (req: Request, res: Response) => {
+  try {
+    const {
+      concepts = [],
+      count = 4,
+      challengeStyle = 'mixed',
+      language = 'english',
+    } = req.body || {};
+
+    if (!Array.isArray(concepts) || concepts.length === 0) {
+      res.status(400).json({ error: 'At least one completed concept is required to generate flashcards.' });
+      return;
+    }
+
+    const safeCount = Math.min(8, Math.max(1, Number(count) || 4));
+    const slicedConcepts = concepts.slice(0, 12).map((c: any) => ({
+      id: String(c.id || ''),
+      phaseNumber: Number(c.phaseNumber ?? 0),
+      title: String(c.title || ''),
+      description: String(c.description || '').slice(0, 260),
+    }));
+
+    const styleInstruction =
+      challengeStyle === 'scenario'
+        ? 'Focus on real-world production engineering scenarios, debugging failure modes, and trade-offs.'
+        : challengeStyle === 'math-code'
+        ? 'Focus on tensor shapes, mathematical derivations, scaling laws, and crisp code/complexity edge cases.'
+        : challengeStyle === 'intuition'
+        ? 'Focus on deep first-principles intuition ("why does this design beat alternatives?").'
+        : 'Mix deep intuition, debugging/edge-case scenarios, and architecture trade-off challenges.';
+
+    const prompt = `Generate ${safeCount} dynamic active-recall flashcards based strictly on these completed AI engineering concepts:
+
+${JSON.stringify(slicedConcepts, null, 2)}
+
+Instructions:
+1. ${styleInstruction}
+2. Avoid shallow "What does X stand for?" trivia. Ask sharp active-recall questions that force the learner to predict outcomes, spot edge cases, explain mechanisms, or compare trade-offs.
+3. Spread the ${safeCount} cards across the supplied concepts (each card MUST include the matching conceptId, conceptTitle, and phaseNumber).
+4. Include a short progressive hint (1 sentence) that nudges memory without giving away the answer.
+5. Language: ${
+      language === 'hinglish'
+        ? 'Clear technical English for prompt/answer, plus a crisp natural Hinglish intuition takeaway in hinglishAnswer.'
+        : 'Concise senior AI engineering English (leave hinglishAnswer as a brief 1-sentence core intuition summary).'
+    }`;
+
+    const attempts = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+    let response: any = null;
+    let modelUsed = 'gemini-4-hydrogen';
+    let lastError: any = null;
+
+    for (const modelName of attempts) {
+      try {
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction:
+              'You are an expert AI Engineering spaced-repetition tutor creating high-yield active recall challenges in strict JSON.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                cards: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      conceptId: { type: Type.STRING },
+                      conceptTitle: { type: Type.STRING },
+                      phaseNumber: { type: Type.INTEGER },
+                      challengeType: { type: Type.STRING },
+                      prompt: { type: Type.STRING },
+                      hint: { type: Type.STRING },
+                      answer: { type: Type.STRING },
+                      hinglishAnswer: { type: Type.STRING },
+                    },
+                    required: [
+                      'conceptId',
+                      'conceptTitle',
+                      'phaseNumber',
+                      'challengeType',
+                      'prompt',
+                      'hint',
+                      'answer',
+                      'hinglishAnswer',
+                    ],
+                  },
+                },
+              },
+              required: ['cards'],
+            },
+          },
+        });
+        modelUsed = modelName;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    if (!response) {
+      const msg = String(lastError?.message || 'Flashcard generation failed');
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        res.status(429).json({ error: 'Gemini API rate limit reached. Please retry shortly.' });
+        return;
+      }
+      if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API_KEY_INVALID')) {
+        res.status(403).json({ error: 'Gemini API key error. Check Settings > Secrets.' });
+        return;
+      }
+      res.status(502).json({ error: 'Unable to generate flashcards with Gemini right now.' });
+      return;
+    }
+
+    const parsed = JSON.parse((response.text ?? '{}').trim());
+    const validCards = Array.isArray(parsed.cards)
+      ? parsed.cards.slice(0, safeCount).map((card: any) => ({
+          conceptId: String(card.conceptId || slicedConcepts[0].id),
+          conceptTitle: String(card.conceptTitle || slicedConcepts[0].title),
+          phaseNumber: Number.isFinite(Number(card.phaseNumber))
+            ? Number(card.phaseNumber)
+            : slicedConcepts[0].phaseNumber,
+          challengeType: String(card.challengeType || 'Active Recall'),
+          prompt: String(card.prompt || '').trim(),
+          hint: String(card.hint || '').trim(),
+          answer: String(card.answer || '').trim(),
+          hinglishAnswer: String(card.hinglishAnswer || '').trim(),
+        })).filter((c: any) => c.prompt && c.answer)
+      : [];
+
+    res.json({
+      ok: true,
+      modelUsed,
+      cards: validCards,
+    });
+  } catch (error: any) {
+    console.error('Flashcard Generation Error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to generate AI flashcards' });
+  }
+});
+
+/**
  * Text-to-Image Creation & Editing API using gemini-nano-banana-2.1
  */
 app.post('/api/generate-image', async (req: Request, res: Response) => {
@@ -1081,7 +1356,7 @@ app.post('/api/backup/create', (req: Request, res: Response) => {
 
     const createdAt = new Date().toISOString();
     const payload = {
-      app: 'SynapseLab AI Engineering Studio',
+      app: 'TensorPlay AI Interactive Playground',
       schemaVersion: 2,
       createdAt,
       storageBackend: 'firebase-firestore',

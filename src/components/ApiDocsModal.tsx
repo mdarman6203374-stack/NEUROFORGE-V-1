@@ -177,7 +177,7 @@ export const ApiDocsModal: React.FC<ApiDocsModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>SynapseLab REST API v1 Explorer</span>
+                <span>TensorPlay REST API v1 Explorer</span>
                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                   JSON · CORS Enabled
                 </span>

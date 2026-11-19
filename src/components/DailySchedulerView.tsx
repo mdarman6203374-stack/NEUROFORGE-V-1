@@ -43,6 +43,7 @@ import { FocusModePomodoroTimer } from './FocusModePomodoroTimer';
 import { AmbientNoisePlayer } from './AmbientNoisePlayer';
 import { FocusMusicPlayer } from './FocusMusicPlayer';
 import { StudyScratchpad } from './StudyScratchpad';
+import { AiStudyBuddyPanel } from './AiStudyBuddyPanel';
 import { MorningWarmupWidget } from './MorningWarmupWidget';
 import { PyodideSandbox } from './PyodideSandbox';
 import { WeeklyDigestModal } from './WeeklyDigestModal';
@@ -1022,6 +1023,15 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
             language={language}
             onExportReportPdf={onExportProgressPdf}
           />
+
+          {/* AI Study Buddy Peer Matcher & Local-State Progress Note Sharing */}
+          {!isFocusMode && (
+            <AiStudyBuddyPanel
+              activeTask={activeTask}
+              language={language}
+              completedDaysCount={completedCount}
+            />
+          )}
         </div>
 
         {/* Right Column: Browser Study Reminders + Pomodoro Timer + Quick Jump Matrix */}

@@ -362,13 +362,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
         new window.Notification(
           isBreak
-            ? 'SynapseLab AI · Break Complete!'
-            : `SynapseLab AI · ${minutesFocused}m Focus Complete!`,
+            ? 'TensorPlay AI · Break Complete!'
+            : `TensorPlay AI · ${minutesFocused}m Focus Complete!`,
           {
             body: isBreak
               ? `Ready to resume Day ${task.dayNumber}: ${task.title}`
               : `Great work on Day ${task.dayNumber}! Take a short break before your next block.`,
-            tag: 'synapselab-pomodoro-complete'
+            tag: 'tensorplay-pomodoro-complete'
           }
         );
       }

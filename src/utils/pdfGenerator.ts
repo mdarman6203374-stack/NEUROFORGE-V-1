@@ -802,7 +802,7 @@ export const generateProgressAndNotesPdf = (options: ProgressReportPdfOptions): 
     doc.setTextColor(148, 163, 184);
 
     if (p > 1) {
-      doc.text('SynapseLab AI - Study Progress & Notes Report', marginX, 10);
+      doc.text('TensorPlay AI - Study Progress & Notes Report', marginX, 10);
       doc.text(`Track: ${pace.toUpperCase()}`, pageWidth - marginX, 10, { align: 'right' });
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.2);
@@ -812,11 +812,11 @@ export const generateProgressAndNotesPdf = (options: ProgressReportPdfOptions): 
     doc.setDrawColor(226, 232, 240);
     doc.setLineWidth(0.2);
     doc.line(marginX, pageHeight - 11.5, pageWidth - marginX, pageHeight - 11.5);
-    doc.text('SynapseLab AI Study Report', marginX, pageHeight - 7);
+    doc.text('TensorPlay AI Study Report', marginX, pageHeight - 7);
     doc.text(`Page ${p} of ${totalPages}`, pageWidth - marginX, pageHeight - 7, { align: 'right' });
   }
 
-  const reportFilename = `SynapseLab_Progress_Notes_Report_${pace}_${new Date().toISOString().split('T')[0]}.pdf`;
+  const reportFilename = `TensorPlay_Progress_Notes_Report_${pace}_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(reportFilename);
 };
 

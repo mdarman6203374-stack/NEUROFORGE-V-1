@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { Terminal, SlidersHorizontal, Bug } from 'lucide-react';
+import { Terminal, SlidersHorizontal, Bug, GitBranch } from 'lucide-react';
 import { Language } from '../types';
 import { PyodideSandbox } from './PyodideSandbox';
 import { InteractiveRagLab } from './InteractiveRagLab';
 import { TensorBugSpotter } from './TensorBugSpotter';
+import { SystemDesignSandbox } from './SystemDesignSandbox';
 
 interface CodeRagLabViewProps {
   language: Language;
-  initialSubTab?: 'python' | 'rag' | 'bugs';
+  initialSubTab?: 'python' | 'rag' | 'bugs' | 'architecture';
 }
 
 export const CodeRagLabView: React.FC<CodeRagLabViewProps> = ({
   language,
   initialSubTab = 'python'
 }) => {
-  const [subTab, setSubTab] = useState<'python' | 'rag' | 'bugs'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'python' | 'rag' | 'bugs' | 'architecture'>(initialSubTab);
 
   useEffect(() => {
     setSubTab(initialSubTab);
@@ -27,17 +28,17 @@ export const CodeRagLabView: React.FC<CodeRagLabViewProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-2 max-w-2xl">
             <div className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
-              Hands-On Coding, RAG Tuning & PyTorch Debugging
+              Hands-On Coding, RAG Tuning, System Design & PyTorch Debugging
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               {language === 'hinglish'
-                ? 'In-Browser Python Sandbox, RAG Lab aur Bug Spotter'
-                : 'Interactive Code, RAG & Tensor Debugging Lab'}
+                ? 'In-Browser Python Sandbox, RAG Lab, Bug Spotter & System Design'
+                : 'Interactive Code, RAG, Architecture & Tensor Debugging Lab'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
               {language === 'hinglish'
-                ? 'Bina Colab khole browser mein NumPy/Python run karein, Phase 4-5 RAG chunks tune karein, aur 60-second PyTorch shape bugs spot karein.'
-                : 'Practice real AI engineering inside the browser: run Python/NumPy drills with live assertions, inspect RAG chunk retrieval vs. temperature, and race a 60s PyTorch bug timer.'}
+                ? 'Bina Colab khole browser mein NumPy/Python run karein, Phase 4-5 RAG chunks tune karein, 60-second PyTorch shape bugs spot karein, aur Fine-Tuning vs RAG vs Agents trade-offs test karein.'
+                : 'Practice real AI engineering inside the browser: run Python/NumPy drills with live assertions, inspect RAG chunk retrieval vs. temperature, stress-test Fine-Tuning vs. RAG vs. Agents trade-offs, and race a 60s PyTorch bug timer.'}
             </p>
           </div>
 
@@ -68,6 +69,18 @@ export const CodeRagLabView: React.FC<CodeRagLabViewProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setSubTab('architecture')}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                subTab === 'architecture'
+                  ? 'bg-violet-600 text-white'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              <span>System Design Sandbox</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setSubTab('bugs')}
               className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 subTab === 'bugs'
@@ -84,6 +97,7 @@ export const CodeRagLabView: React.FC<CodeRagLabViewProps> = ({
 
       {subTab === 'python' && <PyodideSandbox language={language} />}
       {subTab === 'rag' && <InteractiveRagLab language={language} />}
+      {subTab === 'architecture' && <SystemDesignSandbox language={language} />}
       {subTab === 'bugs' && <TensorBugSpotter language={language} />}
     </div>
   );

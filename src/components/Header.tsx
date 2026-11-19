@@ -73,10 +73,10 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => setActiveTab('roadmap')}
             className="flex items-center gap-2.5 text-left cursor-pointer group"
-            title="SynapseLab AI — Interactive AI Engineering Playground"
+            title="TensorPlay AI — Interactive AI Engineering Playground"
           >
-            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-amber-500 flex items-center justify-center text-white shadow-sm shadow-indigo-500/25 group-hover:scale-105 group-hover:rotate-3 transition-all duration-200">
-              <Sparkles className="w-5 h-5 text-amber-200 group-hover:text-white transition-colors" />
+            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/25 group-hover:scale-105 group-hover:rotate-3 transition-all duration-200">
+              <Sparkles className="w-5 h-5 text-cyan-200 group-hover:text-white transition-colors" />
               <span
                 aria-hidden="true"
                 className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"
@@ -88,18 +88,18 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white whitespace-nowrap block">
-                  Synapse
-                  <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-amber-500 dark:from-indigo-400 dark:via-violet-400 dark:to-amber-400 bg-clip-text text-transparent">
-                    Lab
+                  Tensor
+                  <span className="bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
+                    Play
                   </span>
                   <span className="ml-1 text-indigo-600 dark:text-indigo-400">AI</span>
                 </span>
-                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                  STUDIO
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                  LIVE LAB
                 </span>
               </div>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block -mt-0.5">
-                Build · Simulate · Master AI
+                Simulate · Debug · Ship AI
               </span>
             </div>
           </button>

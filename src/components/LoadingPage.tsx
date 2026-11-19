@@ -108,7 +108,7 @@ export const LoadingPage: React.FC<LoadingPageProps> = ({
     <div
       role="status"
       aria-live="polite"
-      aria-label="Loading SynapseLab AI workspace"
+      aria-label="Loading TensorPlay AI interactive workspace"
       className={`fixed inset-0 z-50 flex flex-col items-center justify-center px-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-[opacity,transform] duration-300 ease-out select-none ${
         isExiting ? 'opacity-0 scale-[0.985] pointer-events-none' : 'opacity-100 scale-100'
       }`}
@@ -170,9 +170,9 @@ export const LoadingPage: React.FC<LoadingPageProps> = ({
 
         {/* Brand Identity */}
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Synapse
-          <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-amber-500 dark:from-indigo-400 dark:via-violet-400 dark:to-amber-400 bg-clip-text text-transparent">
-            Lab
+          Tensor
+          <span className="bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
+            Play
           </span>{' '}
           <span className="text-indigo-600 dark:text-indigo-400">AI</span>
         </h1>
