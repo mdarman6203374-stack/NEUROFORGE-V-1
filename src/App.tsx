@@ -691,10 +691,10 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-900 dark:text-white">
-                NeuroForge AI
+                SynapseLab AI
               </span>
               <span aria-hidden="true">·</span>
-              <span>Interactive AI Engineering Mastery OS & Copilot</span>
+              <span>Interactive AI Engineering Playground & Copilot</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">

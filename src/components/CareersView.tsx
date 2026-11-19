@@ -18,6 +18,7 @@ import { CAREER_ROLES_DATA } from '../data/careerData';
 import { Language, SchedulePace, StreakState } from '../types';
 import { MockAiInterviewer } from './MockAiInterviewer';
 import { LivePortfolioBuilder } from './LivePortfolioBuilder';
+import { DomainProficiencyRadar } from './DomainProficiencyRadar';
 
 interface CareersViewProps {
   language: Language;
@@ -171,6 +172,14 @@ export const CareersView: React.FC<CareersViewProps> = ({
 
       {careerTab === 'roles' && (
         <>
+      {/* Visual AI Domain Proficiency Radar Chart (Recharts) */}
+      <DomainProficiencyRadar
+        completedConcepts={completedConcepts}
+        selectedRoleId={selectedRole.id}
+        selectedRoleTitle={selectedRole.title}
+        language={language}
+      />
+
       {/* Interactive Skill Matcher Tool */}
       <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

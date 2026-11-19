@@ -68,25 +68,40 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 lg:gap-8">
         {/* Zone 1: Interactive Brand Wordmark */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-amber-500 flex items-center justify-center text-white shadow-sm shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 text-amber-300" />
-          </div>
+        <div className="flex items-center shrink-0">
           <button
+            type="button"
             onClick={() => setActiveTab('roadmap')}
-            className="text-left cursor-pointer group"
+            className="flex items-center gap-2.5 text-left cursor-pointer group"
+            title="SynapseLab AI — Interactive AI Engineering Playground"
           >
-            <div className="flex items-center gap-1.5">
-              <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white whitespace-nowrap block">
-                NeuroForge AI
-              </span>
-              <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                OS
+            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-amber-500 flex items-center justify-center text-white shadow-sm shadow-indigo-500/25 group-hover:scale-105 group-hover:rotate-3 transition-all duration-200">
+              <Sparkles className="w-5 h-5 text-amber-200 group-hover:text-white transition-colors" />
+              <span
+                aria-hidden="true"
+                className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"
+              >
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-white dark:border-slate-900" />
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block -mt-0.5">
-              AI Engineering Mastery
-            </span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white whitespace-nowrap block">
+                  Synapse
+                  <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-amber-500 dark:from-indigo-400 dark:via-violet-400 dark:to-amber-400 bg-clip-text text-transparent">
+                    Lab
+                  </span>
+                  <span className="ml-1 text-indigo-600 dark:text-indigo-400">AI</span>
+                </span>
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  STUDIO
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block -mt-0.5">
+                Build · Simulate · Master AI
+              </span>
+            </div>
           </button>
         </div>
 

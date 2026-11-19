@@ -177,7 +177,7 @@ export const API_ENDPOINTS_CATALOG = [
 
 v1Router.get('/', (_req: Request, res: Response) => {
   res.json({
-    service: 'NeuroForge AI Engineering Mastery API',
+    service: 'SynapseLab AI Engineering Studio API',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     endpoints: API_ENDPOINTS_CATALOG

@@ -44,13 +44,13 @@ export function buildGentleReminderCopy(payload: ReminderPayload): { title: stri
 
   if (payload.language === 'hinglish') {
     return {
-      title: `${prefix}NeuroForge AI · Padhai ka gentle reminder`,
+      title: `${prefix}SynapseLab AI · Padhai ka gentle reminder`,
       body: `Day ${payload.dayNumber} (${hoursStr}h session): "${payload.hinglishTitle}". Aaram se shuru karein aur apni streak aage badhayein!`
     };
   }
 
   return {
-    title: `${prefix}NeuroForge AI · Gentle Daily Study Reminder`,
+    title: `${prefix}SynapseLab AI · Gentle Daily Study Reminder`,
     body: `Time for Day ${payload.dayNumber} (${hoursStr}h focus): "${payload.taskTitle}". Stay consistent and keep your AI streak alive.`
   };
 }

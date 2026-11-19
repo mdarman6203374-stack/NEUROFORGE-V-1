@@ -84,7 +84,7 @@ export const LivePortfolioBuilder: React.FC<LivePortfolioBuilderProps> = ({
   const generateShareableMarkdown = () => {
     const lines = [
       `# ${candidateName} — ${targetHeadline}`,
-      `> Verified NeuroForge AI Engineering Skill Dossier`,
+      `> Verified SynapseLab AI Engineering Skill Dossier`,
       '',
       `- **Verified Curriculum Hours:** ${verifiedHours} hrs`,
       `- **Mastered Competencies:** ${completedConcepts.length} modules`,

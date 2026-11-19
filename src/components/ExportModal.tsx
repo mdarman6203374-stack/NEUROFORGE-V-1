@@ -242,7 +242,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
       if (!backupObj) {
         backupObj = {
-          app: 'NeuroForge AI Engineering Mastery OS',
+          app: 'SynapseLab AI Engineering Studio',
           schemaVersion: 2,
           createdAt: new Date().toISOString(),
           storageBackend: 'local-snapshot',

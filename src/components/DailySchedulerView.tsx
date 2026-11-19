@@ -23,9 +23,15 @@ import {
   RefreshCw,
   BarChart3,
   Terminal,
-  Trash2
+  Trash2,
+  NotebookPen,
+  X
 } from 'lucide-react';
 import { SchedulePace, Language, DailyTask, StudyReminderConfig } from '../types';
+import {
+  collectSavedScratchpadNotes,
+  SavedScratchpadEntry
+} from '../utils/pdfGenerator';
 import { generateDailySchedule } from '../data/dailyScheduleData';
 import {
   PomodoroTimer,
@@ -35,6 +41,7 @@ import {
 } from './PomodoroTimer';
 import { FocusModePomodoroTimer } from './FocusModePomodoroTimer';
 import { AmbientNoisePlayer } from './AmbientNoisePlayer';
+import { FocusMusicPlayer } from './FocusMusicPlayer';
 import { StudyScratchpad } from './StudyScratchpad';
 import { MorningWarmupWidget } from './MorningWarmupWidget';
 import { PyodideSandbox } from './PyodideSandbox';
@@ -124,6 +131,38 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   const [rebalancePlan, setRebalancePlan] = useState<RebalancePlanState | null>(() =>
     loadRebalancePlan()
   );
+  const [isQuickNoteOpen, setIsQuickNoteOpen] = useState<boolean>(false);
+  const [savedDaysList, setSavedDaysList] = useState<SavedScratchpadEntry[]>(() =>
+    collectSavedScratchpadNotes()
+  );
+
+  // Keep saved day notes list in sync whenever notes are edited, cleared, or imported
+  useEffect(() => {
+    const refreshSavedNotes = () => {
+      setSavedDaysList(collectSavedScratchpadNotes());
+    };
+    refreshSavedNotes();
+    window.addEventListener('neuroforge-scratchpad-updated', refreshSavedNotes);
+    window.addEventListener('storage', refreshSavedNotes);
+    return () => {
+      window.removeEventListener('neuroforge-scratchpad-updated', refreshSavedNotes);
+      window.removeEventListener('storage', refreshSavedNotes);
+    };
+  }, [isQuickNoteOpen]);
+
+  // Close Quick-Note sidebar with Escape without colliding with Focus Mode Escape listener
+  useEffect(() => {
+    if (!isQuickNoteOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        setIsQuickNoteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc, true);
+    return () => window.removeEventListener('keydown', handleEsc, true);
+  }, [isQuickNoteOpen]);
 
   const handleStart25MinBlock = (target: FocusTaskTarget) => {
     setPomodoroStartRequest({
@@ -194,6 +233,7 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
 
   const activeTask = schedule.find((t) => t.dayNumber === currentDay) || schedule[0];
   const isDayCompleted = completedDays.includes(currentDay);
+  const activeDaySavedEntry = savedDaysList.find((entry) => entry.dayNumber === activeTask.dayNumber);
 
   const handleToggleCurrentDay = () => {
     toggleDay(currentDay);
@@ -336,6 +376,20 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
               onTestChime={handleTestPomodoroChime}
               language={language}
             />
+            <button
+              type="button"
+              onClick={() => setIsQuickNoteOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/80 transition-colors cursor-pointer"
+              title={`Open Quick-Note Sidebar for Day ${activeTask.dayNumber}`}
+            >
+              <NotebookPen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Quick Note</span>
+              {activeDaySavedEntry && (
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200/70 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 tabular-nums">
+                  {activeDaySavedEntry.wordCount}w
+                </span>
+              )}
+            </button>
             {onToggleFocusMode && (
               <button
                 type="button"
@@ -666,8 +720,23 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
                   </span>
                 </div>
 
-                {/* Action Buttons: Start 25m Study Block + Mark Day Complete */}
+                {/* Action Buttons: Quick Note + Start 25m Study Block + Mark Day Complete */}
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickNoteOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/70 transition-colors cursor-pointer"
+                    title={`Open Quick-Note Sidebar for Day ${activeTask.dayNumber}`}
+                  >
+                    <NotebookPen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Quick Note</span>
+                    {activeDaySavedEntry && (
+                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200/70 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 tabular-nums">
+                        {activeDaySavedEntry.wordCount}w
+                      </span>
+                    )}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => handleStart25MinBlock('concept')}
@@ -1133,6 +1202,9 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
             onStatusChange={setPomodoroLiveStatus}
           />
 
+          {/* Calming Lo-Fi Focus Music Player (HTML5 Audio API) */}
+          <FocusMusicPlayer language={language} />
+
           {/* Focus Mode Ambient Soundscapes (Rain, Cafe, White Noise) */}
           {isFocusMode && (
             <AmbientNoisePlayer language={language} isFocusMode={isFocusMode} />
@@ -1193,6 +1265,157 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
           }
         }}
       />
+
+      {/* Quick-Note Slide-Over Sidebar Linked Per Study Day */}
+      {isQuickNoteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-slate-950/50 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Quick-Note Sidebar for Day ${activeTask.dayNumber}`}
+          onClick={() => setIsQuickNoteOpen(false)}
+        >
+          <aside
+            className="w-full max-w-lg h-full bg-slate-50 dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sidebar Header */}
+            <div className="px-5 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <NotebookPen className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {language === 'hinglish' ? 'Quick Study Notes' : 'Quick-Note Scratchpad'}
+                    </h2>
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60 tabular-nums">
+                      DAY {activeTask.dayNumber}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    Phase 0{activeTask.phaseNumber} · {activeTask.focusArea}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePrevDay}
+                  disabled={currentDay <= 1}
+                  className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Previous Day Notes"
+                  aria-label="Previous Day"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextDay}
+                  disabled={currentDay >= schedule.length}
+                  className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-35 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  title="Next Day Notes"
+                  aria-label="Next Day"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickNoteOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  title="Close Quick-Note Sidebar (Esc)"
+                  aria-label="Close Quick-Note Sidebar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Sidebar Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Saved Notes Day Quick-Switch Strip */}
+              <div className="p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {language === 'hinglish' ? 'Saved Study Days Notes' : 'Days With Saved Notes'}
+                  </span>
+                  <span className="font-mono text-slate-400 tabular-nums">
+                    {savedDaysList.length} {savedDaysList.length === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+
+                {savedDaysList.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {savedDaysList.map((entry) => {
+                      const isCurrent = entry.dayNumber === activeTask.dayNumber;
+                      return (
+                        <button
+                          key={entry.dayNumber}
+                          type="button"
+                          onClick={() => {
+                            if (entry.dayNumber <= schedule.length) {
+                              setCurrentDay(entry.dayNumber);
+                              setShowAnswer(false);
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-colors cursor-pointer tabular-nums ${
+                            isCurrent
+                              ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                              : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                          title={`Jump to Day ${entry.dayNumber} (${entry.wordCount} words)`}
+                        >
+                          <span>Day {entry.dayNumber}</span>
+                          <span
+                            className={`text-[10px] ${
+                              isCurrent ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'
+                            }`}
+                          >
+                            ({entry.wordCount}w)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {language === 'hinglish'
+                      ? `Abhi tak koi day notes save nahi hain — Day ${activeTask.dayNumber} se likhna shuru karein!`
+                      : `No saved study notes yet — start writing for Day ${activeTask.dayNumber} below.`}
+                  </p>
+                )}
+              </div>
+
+              {/* Synced Per-Day Scratchpad Editor */}
+              <StudyScratchpad
+                dayNumber={activeTask.dayNumber}
+                dayTitle={language === 'hinglish' ? activeTask.hinglishTitle : activeTask.title}
+                language={language}
+                onExportReportPdf={onExportProgressPdf}
+                rows={12}
+              />
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="px-5 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>
+                {language === 'hinglish'
+                  ? `Day ${activeTask.dayNumber} notes auto-saved in localStorage`
+                  : `Linked & saved to localStorage for Day ${activeTask.dayNumber}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsQuickNoteOpen(false)}
+                className="px-3 py-1 font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 };

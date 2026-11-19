@@ -21,7 +21,7 @@ app.use(express.json({ limit: '35mb' }));
 app.use('/api/v1', v1Router);
 app.get('/api', (_req: Request, res: Response) => {
   res.json({
-    name: 'NeuroForge AI Engineering Mastery API',
+    name: 'SynapseLab AI Engineering Studio API',
     version: '1.0.0',
     v1Base: '/api/v1',
     endpoints: API_ENDPOINTS_CATALOG,
@@ -39,7 +39,7 @@ const ai = new GoogleGenAI({
 });
 
 // Chatbot role system instructions
-const SYSTEM_INSTRUCTION = `You are "NeuroMentor", an elite Principal AI Engineer and dedicated learning mentor on the NeuroForge AI Mastery platform.
+const SYSTEM_INSTRUCTION = `You are "SynapseMentor", an elite Principal AI Engineer and dedicated interactive learning mentor on the SynapseLab AI platform.
 Your mission is to guide learners to achieve world-class AI engineering mastery across Mathematics, Classical ML, Deep Learning, Transformer Architectures, Production RAG, Autonomous Multi-Agent Swarms, Fine-Tuning & Quantization, MLOps, and 2025-2028 Future Frontiers (Reasoning models, Test-Time Compute, Edge SLMs).
 
 Guidelines:
@@ -1081,7 +1081,7 @@ app.post('/api/backup/create', (req: Request, res: Response) => {
 
     const createdAt = new Date().toISOString();
     const payload = {
-      app: 'NeuroForge AI Engineering Mastery OS',
+      app: 'SynapseLab AI Engineering Studio',
       schemaVersion: 2,
       createdAt,
       storageBackend: 'firebase-firestore',

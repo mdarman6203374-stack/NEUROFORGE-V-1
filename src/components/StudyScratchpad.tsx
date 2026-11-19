@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { NotebookPen, Trash2, Copy, Check, RotateCcw, FileDown } from 'lucide-react';
 import { Language } from '../types';
 
@@ -7,6 +7,7 @@ interface StudyScratchpadProps {
   dayTitle: string;
   language: Language;
   onExportReportPdf?: () => void;
+  rows?: number;
 }
 
 const getScratchpadStorageKey = (dayNumber: number) =>
@@ -24,15 +25,17 @@ export const StudyScratchpad: React.FC<StudyScratchpadProps> = ({
   dayNumber,
   dayTitle,
   language,
-  onExportReportPdf
+  onExportReportPdf,
+  rows = 5
 }) => {
+  const instanceId = useId();
   const [note, setNote] = useState<string>(() => readScratchpadNote(dayNumber));
   const [copied, setCopied] = useState<boolean>(false);
   const [savedLabel, setSavedLabel] = useState<boolean>(false);
   const [clearedBackup, setClearedBackup] = useState<{ day: number; text: string } | null>(null);
   const savedTimerRef = useRef<number | null>(null);
 
-  // Sync note whenever the active study day changes in the planner OR YouTube bookmark appends
+  // Sync note whenever the active study day changes in the planner, YouTube bookmark appends, or another Scratchpad instance saves
   useEffect(() => {
     setNote(readScratchpadNote(dayNumber));
     setSavedLabel(false);
@@ -40,14 +43,15 @@ export const StudyScratchpad: React.FC<StudyScratchpadProps> = ({
     setClearedBackup(null);
 
     const handleExternalUpdate = (ev: Event) => {
-      const detail = (ev as CustomEvent<{ dayNumber?: number }>).detail;
+      const detail = (ev as CustomEvent<{ dayNumber?: number; sourceId?: string }>).detail;
+      if (detail?.sourceId === instanceId) return;
       if (!detail || detail.dayNumber === dayNumber) {
         setNote(readScratchpadNote(dayNumber));
       }
     };
     window.addEventListener('neuroforge-scratchpad-updated', handleExternalUpdate);
     return () => window.removeEventListener('neuroforge-scratchpad-updated', handleExternalUpdate);
-  }, [dayNumber]);
+  }, [dayNumber, instanceId]);
 
   useEffect(() => {
     return () => {
@@ -65,6 +69,11 @@ export const StudyScratchpad: React.FC<StudyScratchpadProps> = ({
       } else {
         localStorage.setItem(key, value);
       }
+      window.dispatchEvent(
+        new CustomEvent('neuroforge-scratchpad-updated', {
+          detail: { dayNumber: targetDay, sourceId: instanceId }
+        })
+      );
     } catch {
       // Ignore quota / private browsing storage restrictions gracefully
     }
@@ -216,7 +225,7 @@ export const StudyScratchpad: React.FC<StudyScratchpadProps> = ({
       <textarea
         value={note}
         onChange={handleChange}
-        rows={5}
+        rows={rows}
         placeholder={
           language === 'hinglish'
             ? `Day ${dayNumber} ke key points, formulas, code snippets ya doubts yahan likhein... (auto-saved in browser)`
