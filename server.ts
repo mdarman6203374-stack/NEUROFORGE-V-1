@@ -27,13 +27,28 @@ app.get('/api', (_req: Request, res: Response) => {
   });
 });
 
-// Initialize shared Gemini SDK client with User-Agent header as required by skill
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
+// Lazily initialize shared Gemini SDK client so non-Gemini /api/* routes (health, v1, backup)
+// never crash on cold start if GEMINI_API_KEY is not yet configured in Vercel Environment Variables.
+let _aiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!_aiClient) {
+    _aiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || '',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return _aiClient;
+}
+
+const ai: GoogleGenAI = new Proxy({} as GoogleGenAI, {
+  get(_target, prop) {
+    const client = getAiClient() as any;
+    const value = client[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
   },
 });
 
@@ -1554,7 +1569,8 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   } else {
-    const { createServer: createViteServer } = await import('vite');
+    const vitePkg = 'vite';
+    const { createServer: createViteServer } = await import(/* @vite-ignore */ vitePkg);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
