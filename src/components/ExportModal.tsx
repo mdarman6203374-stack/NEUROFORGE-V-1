@@ -8,7 +8,8 @@ import {
   Sparkles,
   CheckCircle2,
   DatabaseBackup,
-  Upload
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ROADMAP_PHASES } from '../data/roadmapData';
 import { generateMasterPlanForMonths, TIMELINE_TRACK_CONFIGS } from '../data/twentyMonthMasterPlanData';
@@ -39,6 +40,7 @@ interface ExportModalProps {
   reminderConfig?: StudyReminderConfig;
   userEmail?: string | null;
   onRestoreBackup?: (payload: RestoredBackupPayload) => void;
+  onOpenCsvCenter?: () => void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -51,7 +53,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   streakState,
   reminderConfig,
   userEmail,
-  onRestoreBackup
+  onRestoreBackup,
+  onOpenCsvCenter
 }) => {
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -544,6 +547,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               </button>
             </div>
           </div>
+
+          {onOpenCsvCenter && (
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenCsvCenter();
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-xl transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Open Normalized Database CSV Center (.csv / .zip)</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

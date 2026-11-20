@@ -1,0 +1,14 @@
+﻿badgeId,title,category,tier,requirementLabel,unlocked,currentProgress,targetProgress,progressPercent
+early-bird,Early Bird,streak,Bronze,1 active study day,true,1,1,100
+spark-ignited,3-Day Spark,streak,Bronze,3-day streak,true,3,3,100
+weekly-warrior,Weekly Warrior,streak,Silver,7-day streak,false,5,7,71
+consistency-king,Consistency King,streak,Gold,14-day streak,false,5,14,36
+habit-locked,Habit Architect,streak,Gold,21-day streak,false,5,21,24
+century-titan,50-Day Titan,streak,Platinum,50-day streak,false,5,50,10
+first-neuron,First Neuron,curriculum,Bronze,1 concept mastered,true,1,1,100
+foundation-architect,Foundation Architect,curriculum,Silver,Complete Phase 0,false,2,4,50
+deep-learner,Deep Learner,curriculum,Silver,10 concepts mastered,false,2,10,20
+neural-halfway,Neural Halfway,curriculum,Gold,50% roadmap concepts,false,2,18,11
+phase-champion,Multi-Phase Scholar,curriculum,Gold,3 complete phases,false,0,3,0
+fifty-milestones,50-Module Polymath,curriculum,Platinum,50 concepts & logs,false,5,50,10
+roadmap-master,Roadmap Master,curriculum,Platinum,100% roadmap concepts,false,2,36,6

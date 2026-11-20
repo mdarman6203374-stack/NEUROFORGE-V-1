@@ -23,6 +23,8 @@ import { DailyQuoteBanner } from './components/DailyQuoteBanner';
 import { MemoryRetentionView } from './components/MemoryRetentionView';
 import { CodeRagLabView } from './components/CodeRagLabView';
 import { PeerStudyLoungeView } from './components/PeerStudyLoungeView';
+import { PythonBookView } from './components/PythonBookView';
+import { DatabaseCsvCenterView } from './components/DatabaseCsvCenterView';
 import { FocusModeMusicBar } from './components/FocusModeMusicBar';
 import { FocusMusicProvider } from './utils/focusMusicContext';
 import { useAuth } from './firebase/authContext';
@@ -750,6 +752,21 @@ export default function App() {
         {activeTab === 'future-outlook' && (
           <FutureOutlookView language={language} />
         )}
+
+        {activeTab === 'python-ai-book' && (
+          <PythonBookView language={language} onNavigateTab={setActiveTab} />
+        )}
+
+        {activeTab === 'database-csv' && (
+          <DatabaseCsvCenterView
+            language={language}
+            pace={pace}
+            completedConcepts={completedConcepts}
+            completedDays={completedDays}
+            streakState={streakState}
+            reminderConfig={reminderConfig}
+          />
+        )}
       </main>
 
       {/* Footer (Hidden in Focus Mode) */}
@@ -862,6 +879,18 @@ export default function App() {
                 1-Click Career Kit
               </button>
               <button
+                onClick={() => setActiveTab('python-ai-book')}
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold transition-colors cursor-pointer"
+              >
+                Python & AI Book
+              </button>
+              <button
+                onClick={() => setActiveTab('database-csv')}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
+              >
+                Database CSVs
+              </button>
+              <button
                 onClick={() => setIsApiDocsOpen(true)}
                 className="hover:text-indigo-600 dark:hover:text-indigo-400 font-mono font-semibold transition-colors cursor-pointer"
               >
@@ -900,6 +929,10 @@ export default function App() {
           if (restored.reminderConfig) {
             setReminderConfig((prev) => ({ ...prev, ...restored.reminderConfig }));
           }
+        }}
+        onOpenCsvCenter={() => {
+          setActiveTab('database-csv');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
 

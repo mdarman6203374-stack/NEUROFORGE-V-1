@@ -1,0 +1,2 @@
+﻿imageId,userId,prompt,aspectRatio,imageUrl,createdAt
+img-sample-001,demo-learner-001,Isometric diagram of Hybrid BM25 + Vector RAG pipeline with Cross-Encoder Reranker,16:9,,2026-11-20T15:02:06.967Z

@@ -1,0 +1,112 @@
+﻿projectId,techOrder,technology
+proj-p0-std,1,Python 3.12
+proj-p0-std,2,Pure Python OOP
+proj-p0-std,3,Math Module
+proj-p0-std,4,Graphviz
+proj-p0-std,5,PyTest
+proj-p0-fut,1,Python 3.12
+proj-p0-fut,2,Z3 Theorem Prover
+proj-p0-fut,3,LLVM / C++ Bindings
+proj-p0-fut,4,SymPy
+proj-p0-fut,5,PyTorch C-API
+proj-p1-std,1,Python 3.12
+proj-p1-std,2,Polars
+proj-p1-std,3,DuckDB
+proj-p1-std,4,FastAPI
+proj-p1-std,5,PyTorch 2.5
+proj-p1-std,6,Redis
+proj-p1-std,7,Docker
+proj-p1-fut,1,PyTorch C++ API
+proj-p1-fut,2,Cython / C++20
+proj-p1-fut,3,Linux Shared Memory
+proj-p1-fut,4,CUDA IPC
+proj-p1-fut,5,Python 3.12
+proj-p2-std,1,Python
+proj-p2-std,2,LightGBM
+proj-p2-std,3,CatBoost
+proj-p2-std,4,Optuna
+proj-p2-std,5,SHAP
+proj-p2-std,6,Evidently AI
+proj-p2-std,7,MLflow
+proj-p2-std,8,FastAPI
+proj-p2-fut,1,River (Online ML)
+proj-p2-fut,2,NumPy / C++
+proj-p2-fut,3,FastAPI
+proj-p2-fut,4,Kafka / Redpanda
+proj-p2-fut,5,Prometheus
+proj-p2-fut,6,Python 3.12
+proj-p3-std,1,PyTorch 2.5
+proj-p3-std,2,Torchvision
+proj-p3-std,3,Timm
+proj-p3-std,4,OpenCV
+proj-p3-std,5,FastAPI
+proj-p3-std,6,Docker
+proj-p3-std,7,Albumentations
+proj-p3-fut,1,PyTorch 2.5
+proj-p3-fut,2,FlashAttention-3
+proj-p3-fut,3,Diffusers
+proj-p3-fut,4,NVIDIA Warp
+proj-p3-fut,5,CUDA C++
+proj-p3-fut,6,Python 3.12
+proj-p4-std,1,PyTorch
+proj-p4-std,2,HuggingFace TRL
+proj-p4-std,3,Unsloth
+proj-p4-std,4,vLLM
+proj-p4-std,5,DeepEval
+proj-p4-std,6,Llama-3
+proj-p4-std,7,Docker
+proj-p4-fut,1,CUDA C++
+proj-p4-fut,2,PyTorch C-Extension
+proj-p4-fut,3,Triton
+proj-p4-fut,4,vLLM Internals
+proj-p4-fut,5,Python 3.12
+proj-p5-std,1,Python 3.12
+proj-p5-std,2,Neo4j
+proj-p5-std,3,Qdrant
+proj-p5-std,4,Cohere Rerank
+proj-p5-std,5,LlamaIndex
+proj-p5-std,6,Ragas
+proj-p5-std,7,FastAPI
+proj-p5-std,8,Docker
+proj-p5-fut,1,Python 3.12
+proj-p5-fut,2,Rust / PyO3
+proj-p5-fut,3,Neo4j Aura
+proj-p5-fut,4,Milvus
+proj-p5-fut,5,Redis Streams
+proj-p5-fut,6,LangGraph
+proj-p6-std,1,Python 3.12
+proj-p6-std,2,LangGraph
+proj-p6-std,3,Docker SDK
+proj-p6-std,4,GitHub REST API
+proj-p6-std,5,Pydantic v2
+proj-p6-std,6,PostgreSQL
+proj-p6-std,7,FastAPI
+proj-p6-fut,1,Python 3.12
+proj-p6-fut,2,LangGraph
+proj-p6-fut,3,Tree-Sitter (AST parsing)
+proj-p6-fut,4,GitPython
+proj-p6-fut,5,Docker
+proj-p6-fut,6,eBPF / Profiling
+proj-p7-std,1,Python 3.12
+proj-p7-std,2,FastAPI
+proj-p7-std,3,Redis Vector
+proj-p7-std,4,Microsoft Presidio
+proj-p7-std,5,Langfuse
+proj-p7-std,6,Docker
+proj-p7-std,7,Prometheus
+proj-p7-fut,1,PyTorch 2.5
+proj-p7-fut,2,vLLM Internals
+proj-p7-fut,3,TransformerLens
+proj-p7-fut,4,CUDA C++
+proj-p7-fut,5,Python 3.12
+proj-p8-std,1,Python 3.12
+proj-p8-std,2,PyTorch 2.5
+proj-p8-std,3,vLLM
+proj-p8-std,4,SymPy
+proj-p8-std,5,HuggingFace
+proj-p8-std,6,FastAPI
+proj-p8-fut,1,Apple Silicon MLX / C++
+proj-p8-fut,2,WebRTC
+proj-p8-fut,3,Whisper.cpp
+proj-p8-fut,4,ONNX Runtime
+proj-p8-fut,5,Python 3.12

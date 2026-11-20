@@ -29,6 +29,8 @@ import {
   ChevronRight,
   FileCheck2,
   Database,
+  BookOpen,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { Language, StreakMilestone, StreakState } from '../types';
 import { StreakTracker } from './StreakTracker';
@@ -55,7 +57,7 @@ interface NavItemDef {
   label: string;
   desc: string;
   hinglishDesc: string;
-  group: 'Study Plan' | 'Interactive Labs' | 'Projects & Career';
+  group: 'Study Plan' | 'Interactive Labs' | 'Projects & Career' | 'Books & Guides';
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -196,12 +198,29 @@ const NAV_ITEMS: NavItemDef[] = [
     group: 'Projects & Career',
     icon: Cpu,
   },
+  {
+    id: 'python-ai-book',
+    label: 'Python & AI Book',
+    desc: '12-chapter Python (Zero to Advanced) + full AI Roadmap handbook & interview Q&A',
+    hinglishDesc: 'Zero se Advanced Python + complete AI Roadmap book & interview prep',
+    group: 'Books & Guides',
+    icon: BookOpen,
+  },
+  {
+    id: 'database-csv',
+    label: 'Database CSV Center',
+    desc: 'Export all Firestore, user activity & curriculum tables as normalized 1NF CSVs',
+    hinglishDesc: 'Firestore, activity logs & curriculum ki separate CSV table files download karein',
+    group: 'Books & Guides',
+    icon: FileSpreadsheet,
+  },
 ];
 
 const NAV_GROUPS: Array<NavItemDef['group']> = [
   'Study Plan',
   'Interactive Labs',
   'Projects & Career',
+  'Books & Guides',
 ];
 
 export const Header: React.FC<HeaderProps> = ({
@@ -486,7 +505,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="absolute inset-x-0 top-16 z-50 border-b border-slate-200 dark:border-slate-800 bg-white/98 dark:bg-slate-950/98 backdrop-blur-xl shadow-2xl"
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5 max-h-[calc(100vh-5rem)] overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {NAV_GROUPS.map((group) => {
                 const items = NAV_ITEMS.filter((item) => item.group === group);
                 return (

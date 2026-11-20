@@ -1,0 +1,55 @@
+﻿projectId,bulletOrder,bulletText
+proj-p0-std,1,"Architected a reverse-mode autograd engine from scratch in pure Python, implementing dynamic DAG execution and topological sorting for exact gradient propagation."
+proj-p0-std,2,"Engineered an MLP neural network layer with custom weight initialization, achieving 98.4% convergence on synthetic non-linear benchmarks with zero external ML dependencies."
+proj-p0-std,3,Authored 45+ unit tests verifying analytical vs numerical gradient approximations within 1e-5 error tolerances.
+proj-p0-fut,1,"Pioneered a neuro-symbolic tensor graph verifier utilizing Z3 SMT solver, automating proof of equivalence for 12 complex multi-head attention rewrites."
+proj-p0-fut,2,Devised an automated kernel fusion heuristic reducing intermediate memory allocations by 38% across benchmarked attention blocks.
+proj-p0-fut,3,Packaged as an open-source PyPI tool featuring interactive memory profiling and automated C-extension compilation.
+proj-p1-std,1,"Engineered an async feature ingestion gateway using Polars and DuckDB, achieving 42,000 req/sec throughput with sub-4ms feature lookup latency."
+proj-p1-std,2,"Implemented dynamic inference batching queue in PyTorch, boosting GPU compute utilization from 32% to 89% under peak load."
+proj-p1-std,3,Containerized multi-stage Docker deployment with automated health probes and Prometheus metrics export.
+proj-p1-fut,1,"Architected a zero-copy heterogeneous tensor fabric using pinned memory and shared memory ring buffers, slashing CPU-to-GPU transfer latency by 74%."
+proj-p1-fut,2,"Eliminated memory allocation stalls during 4K 60FPS multi-camera ingestion, maintaining a rock-solid 16.6ms frame budget."
+proj-p1-fut,3,Published benchmarks demonstrating 3.2x throughput improvement over standard PyTorch DataLoader multiprocessing.
+proj-p2-std,1,"Developed a credit risk prediction ensemble using LightGBM and CatBoost, achieving a 0.892 PR-AUC on 500k imbalanced loan records."
+proj-p2-std,2,"Formulated custom Focal Loss objective function, outperforming standard cross-entropy and increasing fraud recall by 34% at 95% precision."
+proj-p2-std,3,"Integrated SHAP TreeExplainer and Evidently AI drift monitor, automating regulatory compliance reports and dataset distribution tracking."
+proj-p2-fut,1,Engineered an online continual learning engine combining streaming gradient boosting with Elastic Weight Consolidation (EWC).
+proj-p2-fut,2,Maintained 94.2% stability during simulated regime shifts while reducing retraining infrastructure costs by 82%.
+proj-p2-fut,3,Designed Bayesian model blender adapting weights dynamically according to real-time prediction confidence.
+proj-p3-std,1,"Engineered a Vision Transformer (ViT-B/16) diagnostic classifier on 120,000 chest radiography images, achieving a 0.941 multi-class AUC."
+proj-p3-std,2,"Developed real-time Grad-CAM attention rollout engine, generating localized pathological heatmaps for radiologist validation in 120ms."
+proj-p3-std,3,Accelerated training time by 42% utilizing PyTorch mixed-precision (`torch.cuda.amp`) and optimized spatial augmentations.
+proj-p3-fut,1,Formulated a 4D spatio-temporal video diffusion architecture predicting 32-frame dynamic futures conditioned on robotic actuation tokens.
+proj-p3-fut,2,"Integrated physics-informed loss penalties into the diffusion objective, reducing dynamic trajectory violations by 61%."
+proj-p3-fut,3,Implemented FlashAttention-3 kernels to process high-resolution video latents within single GPU memory bounds.
+proj-p4-std,1,"Fine-tuned Llama-3-8B on 45,000 corporate contracts utilizing QLoRA, improving legal clause classification accuracy from 71% to 94.2%."
+proj-p4-std,2,"Constructed a synthetic data pipeline with automated validation heuristics, filtering out 38% low-quality training pairs."
+proj-p4-std,3,"Deployed production inference engine with vLLM and PagedAttention, achieving 180 tokens/sec with sub-40ms time-to-first-token (TTFT)."
+proj-p4-fut,1,"Invented an entropy-guided KV-cache pruning kernel in CUDA, slashing memory footprint by 72% on 1M token contexts."
+proj-p4-fut,2,Maintained 99.1% multi-needle in-a-haystack retrieval accuracy while fitting 100k+ token prompts onto an RTX 4090.
+proj-p4-fut,3,"Engineered zero-copy memory compaction, eliminating memory fragmentation stalls in continuous generation loops."
+proj-p5-std,1,"Architected a production GraphRAG system integrating Neo4j and Qdrant, improving multi-hop query accuracy by 48% over standard dense retrieval."
+proj-p5-std,2,"Implemented Reciprocal Rank Fusion with BGE-Reranker, decreasing irrelevant context token waste by 37%."
+proj-p5-std,3,"Established continuous automated evaluation via Ragas, maintaining a verified 0.93 Faithfulness score across 50,000 indexed corporate documents."
+proj-p5-fut,1,Constructed an anticipatory speculative retrieval engine reducing end-to-end multi-turn RAG perceived latency to zero (<5ms).
+proj-p5-fut,2,Developed a temporal knowledge graph resolving contradictory document versions with 99.4% precision using timestamped fact graphs.
+proj-p5-fut,3,Engineered an automated hallucination contradiction barrier that cross-validates LLM assertions against retrieved ground truth.
+proj-p6-std,1,"Built a 4-agent autonomous code audit swarm using LangGraph, reducing manual engineering PR review turnaround by 65%."
+proj-p6-std,2,"Implemented isolated Docker container sandboxes for dynamic PyTest synthesis, catching 89% of edge-case runtime regressions."
+proj-p6-std,3,Structured stateful workflow with human-in-the-loop approval gates before automatically merging approved dependency upgrades.
+proj-p6-fut,1,Pioneered an autonomous repository refactoring swarm using Tree-Sitter AST analysis and LangGraph state machines.
+proj-p6-fut,2,Invented an automated git-bisect self-healing loop that isolated and resolved 92% of synthetic regressions without developer intervention.
+proj-p6-fut,3,Achieved a verified 28% runtime latency reduction across open-source benchmark repositories through automated kernel and I/O refactoring.
+proj-p7-std,1,"Architected an enterprise LLM reverse proxy handling 2.4M monthly requests, slashing external API costs by 42% via semantic Redis caching."
+proj-p7-std,2,"Engineered an inline PII redaction pipeline with Microsoft Presidio, sanitizing sensitive enterprise customer data with sub-8ms latency overhead."
+proj-p7-std,3,"Integrated Langfuse distributed tracing and automated prompt injection shields, blocking 99.8% of OWASP Top-10 LLM attack vectors."
+proj-p7-fut,1,"Invented an in-graph latent activation steering module in PyTorch, neutralizing 98.7% of adversarial jailbreaks at 0ms network latency cost."
+proj-p7-fut,2,"Trained linear concept probes on internal residual streams, detecting obfuscated cipher attacks that bypassed standard commercial text guardrails."
+proj-p7-fut,3,Integrated directly into custom vLLM decoding loops without degrading clean prompt throughput.
+proj-p8-std,1,Engineered a Test-Time Compute reasoning engine implementing Monte Carlo Tree Search over LLM rollout candidates.
+proj-p8-std,2,"Developed a step-level Process Reward Model (PRM) scorer, improving mathematical reasoning accuracy by 3.1x over single-pass generation."
+proj-p8-std,3,"Optimized parallel rollout generation utilizing vLLM speculative branch sampling, maintaining practical inference latencies."
+proj-p8-fut,1,Architected a local full-duplex voice-vision spatial assistant achieving sub-60ms end-to-end conversational turn latency on Apple Silicon.
+proj-p8-fut,2,"Engineered real-time interruption handling in WebRTC, canceling local audio synthesis within 30ms of user speech onset."
+proj-p8-fut,3,Built a 100% offline edge privacy pipeline streaming 30FPS spatial video without sending any data to external cloud servers.

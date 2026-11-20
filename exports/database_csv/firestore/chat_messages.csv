@@ -1,0 +1,3 @@
+﻿messageId,sessionId,userId,role,content,createdAt
+msg-welcome-001,session-welcome-001,demo-learner-001,user,Explain how dot-product attention uses linear algebra.,2026-11-20T15:02:06.967Z
+msg-welcome-002,session-welcome-001,demo-learner-001,model,"Attention computes scaled dot products QK^T / sqrt(d_k), measuring cosine alignment between query and key vectors before softmax weighting.",2026-11-20T15:02:06.967Z

@@ -1,0 +1,211 @@
+﻿tableName,fileName,tier,columnOrder,columnName,dataType,nullable,keyConstraint,foreignKeyRef,tableRowCount,columnDescription
+users,firestore/users.csv,firestore,1,uid,STRING,false,PK,,1,Firebase Auth user UID
+users,firestore/users.csv,firestore,2,email,STRING,false,,,1,Primary user email
+users,firestore/users.csv,firestore,3,displayName,STRING,true,,,1,Profile display name
+users,firestore/users.csv,firestore,4,photoURL,STRING,true,,,1,Avatar URL
+users,firestore/users.csv,firestore,5,createdAt,TIMESTAMP,true,,,1,ISO creation timestamp
+users,firestore/users.csv,firestore,6,updatedAt,TIMESTAMP,true,,,1,ISO last update timestamp
+user_progress,firestore/user_progress.csv,firestore,1,userId,STRING,false,"PK,FK",users.uid,1,Owner UID
+user_progress,firestore/user_progress.csv,firestore,2,currentStreak,INTEGER,false,,,1,Active daily streak count
+user_progress,firestore/user_progress.csv,firestore,3,longestStreak,INTEGER,false,,,1,All-time longest streak
+user_progress,firestore/user_progress.csv,firestore,4,lastCompletedDate,DATE,true,,,1,YYYY-MM-DD of last completed day
+user_progress,firestore/user_progress.csv,firestore,5,preferredPace,STRING,true,,,1,Active study pace track
+user_progress,firestore/user_progress.csv,firestore,6,reminderEnabled,BOOLEAN,false,,,1,Daily study notification toggle
+user_progress,firestore/user_progress.csv,firestore,7,reminderTime,STRING,true,,,1,HH:MM 24h reminder time
+user_progress,firestore/user_progress.csv,firestore,8,reminderGentleTone,BOOLEAN,false,,,1,Gentle copy mode flag
+user_progress,firestore/user_progress.csv,firestore,9,reminderLastNotifiedDate,DATE,true,,,1,Last notification ISO date
+user_progress,firestore/user_progress.csv,firestore,10,updatedAt,TIMESTAMP,true,,,1,Last cloud sync timestamp
+user_progress_completed_concepts,firestore/user_progress_completed_concepts.csv,firestore,1,userId,STRING,false,"PK,FK",user_progress.userId,2,Learner UID
+user_progress_completed_concepts,firestore/user_progress_completed_concepts.csv,firestore,2,conceptId,STRING,false,"PK,FK",roadmap_concepts.conceptId,2,Completed roadmap concept ID
+user_progress_completed_concepts,firestore/user_progress_completed_concepts.csv,firestore,3,completedDate,DATE,true,,,2,Recorded completion date (from SRS timestamps)
+user_progress_completed_days,firestore/user_progress_completed_days.csv,firestore,1,userId,STRING,false,"PK,FK",user_progress.userId,3,Learner UID
+user_progress_completed_days,firestore/user_progress_completed_days.csv,firestore,2,dayNumber,INTEGER,false,PK,,3,Completed planner day index
+user_progress_reminder_days,firestore/user_progress_reminder_days.csv,firestore,1,userId,STRING,false,"PK,FK",user_progress.userId,7,Learner UID
+user_progress_reminder_days,firestore/user_progress_reminder_days.csv,firestore,2,dayOfWeek,INTEGER,false,PK,,7,Weekday integer (0-6)
+user_progress_reminder_days,firestore/user_progress_reminder_days.csv,firestore,3,dayLabel,STRING,false,,,7,Human-readable weekday name
+chat_sessions,firestore/chat_sessions.csv,firestore,1,sessionId,STRING,false,PK,,1,Chat session ID
+chat_sessions,firestore/chat_sessions.csv,firestore,2,userId,STRING,false,FK,users.uid,1,Owner UID
+chat_sessions,firestore/chat_sessions.csv,firestore,3,title,STRING,false,,,1,Session title
+chat_sessions,firestore/chat_sessions.csv,firestore,4,model,STRING,true,,,1,Gemini model alias
+chat_sessions,firestore/chat_sessions.csv,firestore,5,createdAt,TIMESTAMP,true,,,1,Session created ISO timestamp
+chat_sessions,firestore/chat_sessions.csv,firestore,6,updatedAt,TIMESTAMP,true,,,1,Last activity ISO timestamp
+chat_messages,firestore/chat_messages.csv,firestore,1,messageId,STRING,false,PK,,2,Unique message document ID
+chat_messages,firestore/chat_messages.csv,firestore,2,sessionId,STRING,false,FK,chat_sessions.sessionId,2,Parent session ID
+chat_messages,firestore/chat_messages.csv,firestore,3,userId,STRING,false,FK,users.uid,2,Owner UID
+chat_messages,firestore/chat_messages.csv,firestore,4,role,STRING,false,,,2,user | model | system
+chat_messages,firestore/chat_messages.csv,firestore,5,content,STRING,false,,,2,Message markdown text
+chat_messages,firestore/chat_messages.csv,firestore,6,createdAt,TIMESTAMP,true,,,2,ISO message timestamp
+chat_message_sources,firestore/chat_message_sources.csv,firestore,1,messageId,STRING,false,"PK,FK",chat_messages.messageId,1,Parent message ID
+chat_message_sources,firestore/chat_message_sources.csv,firestore,2,sourceIndex,INTEGER,false,PK,,1,1-based citation order
+chat_message_sources,firestore/chat_message_sources.csv,firestore,3,sessionId,STRING,false,FK,chat_sessions.sessionId,1,Parent session ID
+chat_message_sources,firestore/chat_message_sources.csv,firestore,4,userId,STRING,false,FK,users.uid,1,Owner UID
+chat_message_sources,firestore/chat_message_sources.csv,firestore,5,title,STRING,true,,,1,Web page title
+chat_message_sources,firestore/chat_message_sources.csv,firestore,6,url,STRING,true,,,1,Source URI
+generated_images,firestore/generated_images.csv,firestore,1,imageId,STRING,false,PK,,1,Generated image doc ID
+generated_images,firestore/generated_images.csv,firestore,2,userId,STRING,false,FK,users.uid,1,Owner UID
+generated_images,firestore/generated_images.csv,firestore,3,prompt,STRING,false,,,1,Generation prompt
+generated_images,firestore/generated_images.csv,firestore,4,aspectRatio,STRING,true,,,1,Aspect ratio e.g. 16:9
+generated_images,firestore/generated_images.csv,firestore,5,imageUrl,STRING,true,,,1,Asset URI or truncated data prefix
+generated_images,firestore/generated_images.csv,firestore,6,createdAt,TIMESTAMP,true,,,1,ISO creation timestamp
+streak_history_dates,firestore/streak_history_dates.csv,firestore,1,userId,STRING,false,"PK,FK",users.uid,1,Learner UID
+streak_history_dates,firestore/streak_history_dates.csv,firestore,2,activityDate,DATE,false,PK,,1,YYYY-MM-DD active study date
+streak_history_dates,firestore/streak_history_dates.csv,firestore,3,celebratedMilestoneDays,INTEGER,true,,,1,Matched milestone if applicable
+project_artifacts,activity/project_artifacts.csv,activity,1,projectId,STRING,false,"PK,FK",projects.projectId,0,Capstone project ID
+project_artifacts,activity/project_artifacts.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+project_artifacts,activity/project_artifacts.csv,activity,3,status,STRING,false,,,0,planned | in-progress | shipped
+project_artifacts,activity/project_artifacts.csv,activity,4,githubUrl,STRING,true,,,0,Repository URL
+project_artifacts,activity/project_artifacts.csv,activity,5,demoUrl,STRING,true,,,0,Live demo URL
+project_artifacts,activity/project_artifacts.csv,activity,6,latestCommitHash,STRING,true,,,0,Git commit SHA
+project_artifacts,activity/project_artifacts.csv,activity,7,chkArchitecture,BOOLEAN,false,,,0,README Problem & Architecture checked
+project_artifacts,activity/project_artifacts.csv,activity,8,chkSetup,BOOLEAN,false,,,0,Reproducible setup checked
+project_artifacts,activity/project_artifacts.csv,activity,9,chkBenchmarks,BOOLEAN,false,,,0,Benchmarks & evals checked
+project_artifacts,activity/project_artifacts.csv,activity,10,chkDemoMedia,BOOLEAN,false,,,0,Demo GIF / screenshots checked
+project_artifacts,activity/project_artifacts.csv,activity,11,updatedAt,TIMESTAMP,true,,,0,Last updated ISO timestamp
+srs_cards,activity/srs_cards.csv,activity,1,id,STRING,false,PK,,0,SRS card identifier
+srs_cards,activity/srs_cards.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+srs_cards,activity/srs_cards.csv,activity,3,conceptId,STRING,false,FK,roadmap_concepts.conceptId,0,Linked concept ID
+srs_cards,activity/srs_cards.csv,activity,4,phaseNumber,INTEGER,false,,,0,Roadmap phase number
+srs_cards,activity/srs_cards.csv,activity,5,conceptTitle,STRING,false,,,0,Concept title
+srs_cards,activity/srs_cards.csv,activity,6,source,STRING,false,,,0,concept-milestone | weak-quiz | custom | ai-generated
+srs_cards,activity/srs_cards.csv,activity,7,milestoneStage,INTEGER,false,,,0,3 | 7 | 21 | 60 day milestone
+srs_cards,activity/srs_cards.csv,activity,8,repetitions,INTEGER,false,,,0,Consecutive recall count
+srs_cards,activity/srs_cards.csv,activity,9,intervalDays,INTEGER,false,,,0,Next review interval in days
+srs_cards,activity/srs_cards.csv,activity,10,easeFactor,FLOAT,false,,,0,SM-2 ease multiplier
+srs_cards,activity/srs_cards.csv,activity,11,dueDate,DATE,false,,,0,YYYY-MM-DD due date
+srs_cards,activity/srs_cards.csv,activity,12,completedOnDate,DATE,true,,,0,Initial concept completion date
+srs_cards,activity/srs_cards.csv,activity,13,lastReviewedAt,TIMESTAMP,true,,,0,Last review ISO timestamp
+srs_cards,activity/srs_cards.csv,activity,14,lapseCount,INTEGER,false,,,0,Times rated Again
+srs_cards,activity/srs_cards.csv,activity,15,prompt,STRING,false,,,0,Active-recall prompt
+srs_cards,activity/srs_cards.csv,activity,16,answer,STRING,false,,,0,Reference answer
+feynman_attempts,activity/feynman_attempts.csv,activity,1,id,STRING,false,PK,,0,Attempt ID
+feynman_attempts,activity/feynman_attempts.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+feynman_attempts,activity/feynman_attempts.csv,activity,3,conceptId,STRING,false,FK,roadmap_concepts.conceptId,0,Evaluated concept ID
+feynman_attempts,activity/feynman_attempts.csv,activity,4,conceptTitle,STRING,false,,,0,Concept title
+feynman_attempts,activity/feynman_attempts.csv,activity,5,mode,STRING,false,,,0,voice | text
+feynman_attempts,activity/feynman_attempts.csv,activity,6,durationSecondsUsed,INTEGER,false,,,0,Seconds spent
+feynman_attempts,activity/feynman_attempts.csv,activity,7,clarityScore,INTEGER,false,,,0,0-100 score
+feynman_attempts,activity/feynman_attempts.csv,activity,8,intuitionScore,INTEGER,false,,,0,0-100 score
+feynman_attempts,activity/feynman_attempts.csv,activity,9,simplicityScore,INTEGER,false,,,0,0-100 score
+feynman_attempts,activity/feynman_attempts.csv,activity,10,accuracyScore,INTEGER,true,,,0,0-100 score
+feynman_attempts,activity/feynman_attempts.csv,activity,11,verdictHeadline,STRING,false,,,0,Summary verdict
+feynman_attempts,activity/feynman_attempts.csv,activity,12,transcript,STRING,false,,,0,Student explanation text
+feynman_attempts,activity/feynman_attempts.csv,activity,13,simplifiedAnalogy,STRING,false,,,0,Gemini reference analogy
+feynman_attempts,activity/feynman_attempts.csv,activity,14,createdAt,TIMESTAMP,false,,,0,Attempt ISO timestamp
+feynman_feedback_items,activity/feynman_feedback_items.csv,activity,1,attemptId,STRING,false,"PK,FK",feynman_attempts.id,0,Parent attempt ID
+feynman_feedback_items,activity/feynman_feedback_items.csv,activity,2,feedbackType,STRING,false,PK,,0,strength | missingIntuition | jargonTrap | accuracyNote
+feynman_feedback_items,activity/feynman_feedback_items.csv,activity,3,itemOrder,INTEGER,false,PK,,0,1-based item index
+feynman_feedback_items,activity/feynman_feedback_items.csv,activity,4,itemText,STRING,false,,,0,Feedback bullet text
+study_scratchpad_notes,activity/study_scratchpad_notes.csv,activity,1,dayNumber,INTEGER,false,PK,,0,Study day number
+study_scratchpad_notes,activity/study_scratchpad_notes.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+study_scratchpad_notes,activity/study_scratchpad_notes.csv,activity,3,wordCount,INTEGER,false,,,0,Computed word count
+study_scratchpad_notes,activity/study_scratchpad_notes.csv,activity,4,noteContent,STRING,false,,,0,Full note text
+pomodoro_logs,activity/pomodoro_logs.csv,activity,1,id,STRING,false,PK,,0,Session log ID
+pomodoro_logs,activity/pomodoro_logs.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+pomodoro_logs,activity/pomodoro_logs.csv,activity,3,dateIso,DATE,false,,,0,YYYY-MM-DD session date
+pomodoro_logs,activity/pomodoro_logs.csv,activity,4,durationMins,INTEGER,false,,,0,Focus minutes completed
+pomodoro_logs,activity/pomodoro_logs.csv,activity,5,mode,STRING,false,,,0,focus | break
+pomodoro_logs,activity/pomodoro_logs.csv,activity,6,completedAt,TIMESTAMP,true,,,0,Completion ISO timestamp
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,1,id,STRING,false,PK,,0,Bookmark ID
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,2,userId,STRING,false,FK,users.uid,0,Learner UID
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,3,playlistKey,STRING,false,,,0,Channel/playlist slug
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,4,playlistTitle,STRING,false,,,0,Playlist title
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,5,timestamp,STRING,false,,,0,Video timestamp MM:SS
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,6,note,STRING,false,,,0,Learner note
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,7,linkedDay,INTEGER,false,,,0,Linked study day
+youtube_bookmarks,activity/youtube_bookmarks.csv,activity,8,createdAt,TIMESTAMP,false,,,0,ISO timestamp
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,1,userId,STRING,false,"PK,FK",users.uid,0,Learner UID
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,2,pace,STRING,false,,,0,Schedule pace track
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,3,weekendIndex,INTEGER,false,PK,,0,1..3 weekend bucket
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,4,weekendLabel,STRING,false,,,0,Readable weekend label
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,5,dayNumber,INTEGER,false,PK,,0,Absorbed study day
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,6,title,STRING,false,,,0,Study day title
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,7,estCatchupMins,INTEGER,false,,,0,Compressed catch-up minutes
+weekend_rebalance_slots,activity/weekend_rebalance_slots.csv,activity,8,createdAt,TIMESTAMP,false,,,0,Plan generation timestamp
+book_read_progress,activity/book_read_progress.csv,activity,1,userId,STRING,false,"PK,FK",users.uid,0,Learner UID
+book_read_progress,activity/book_read_progress.csv,activity,2,chapterId,STRING,false,"PK,FK",python_book_chapters.chapterId,0,Completed chapter ID
+book_read_progress,activity/book_read_progress.csv,activity,3,completed,BOOLEAN,false,,,0,Completion flag
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,1,phaseId,STRING,false,PK,,9,Unique phase ID
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,2,phaseNumber,INTEGER,false,,,9,Sequential phase 0..8
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,3,title,STRING,false,,,9,English title
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,4,hinglishTitle,STRING,false,,,9,Hinglish title
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,5,subtitle,STRING,false,,,9,Phase focus summary
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,6,durationWeeks,INTEGER,false,,,9,Estimated duration in weeks
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,7,overview,STRING,false,,,9,English overview
+roadmap_phases,curriculum/roadmap_phases.csv,curriculum,8,hinglishOverview,STRING,false,,,9,Hinglish overview
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,1,conceptId,STRING,false,PK,,36,Concept ID e.g. p0-1
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,2,phaseId,STRING,false,FK,roadmap_phases.phaseId,36,Parent phase ID
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,3,phaseNumber,INTEGER,false,,,36,Parent phase number
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,4,title,STRING,false,,,36,Concept title
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,5,difficulty,STRING,false,,,36,Beginner | Intermediate | Advanced
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,6,estHours,INTEGER,false,,,36,Estimated study hours
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,7,description,STRING,false,,,36,Technical description
+roadmap_concepts,curriculum/roadmap_concepts.csv,curriculum,8,hinglishDesc,STRING,true,,,36,Hinglish intuitive explanation
+daily_schedule,curriculum/daily_schedule.csv,curriculum,1,dayNumber,INTEGER,false,PK,,600,Sequential study day
+daily_schedule,curriculum/daily_schedule.csv,curriculum,2,pace,STRING,false,,,600,Active schedule pace
+daily_schedule,curriculum/daily_schedule.csv,curriculum,3,phaseId,STRING,false,FK,roadmap_phases.phaseId,600,Mapped phase ID
+daily_schedule,curriculum/daily_schedule.csv,curriculum,4,phaseNumber,INTEGER,false,,,600,Phase number 0..8
+daily_schedule,curriculum/daily_schedule.csv,curriculum,5,title,STRING,false,,,600,Daily task title
+daily_schedule,curriculum/daily_schedule.csv,curriculum,6,hinglishTitle,STRING,false,,,600,Hinglish task title
+daily_schedule,curriculum/daily_schedule.csv,curriculum,7,focusArea,STRING,false,,,600,Concept | Coding | Project | Revision
+daily_schedule,curriculum/daily_schedule.csv,curriculum,8,durationMins,INTEGER,false,,,600,Planned minutes
+daily_schedule,curriculum/daily_schedule.csv,curriculum,9,handsOnTask,STRING,false,,,600,Coding deliverable
+projects,curriculum/projects.csv,curriculum,1,projectId,STRING,false,PK,,18,Project ID
+projects,curriculum/projects.csv,curriculum,2,phaseId,STRING,false,FK,roadmap_phases.phaseId,18,Mapped phase ID
+projects,curriculum/projects.csv,curriculum,3,phaseNumber,INTEGER,false,,,18,Phase index
+projects,curriculum/projects.csv,curriculum,4,category,STRING,false,,,18,Standard Resume | Visionary Future
+projects,curriculum/projects.csv,curriculum,5,title,STRING,false,,,18,Project title
+projects,curriculum/projects.csv,curriculum,6,tagline,STRING,false,,,18,One-line project summary
+projects,curriculum/projects.csv,curriculum,7,noveltyFactor,STRING,false,,,18,Differentiator
+projects,curriculum/projects.csv,curriculum,8,keyMetrics,STRING,false,,,18,Target metrics
+projects,curriculum/projects.csv,curriculum,9,problemStatement,STRING,false,,,18,Problem statement
+project_tech_stack,curriculum/project_tech_stack.csv,curriculum,1,projectId,STRING,false,"PK,FK",projects.projectId,111,Parent project ID
+project_tech_stack,curriculum/project_tech_stack.csv,curriculum,2,techOrder,INTEGER,false,PK,,111,1-based stack order
+project_tech_stack,curriculum/project_tech_stack.csv,curriculum,3,technology,STRING,false,,,111,Framework or library name
+project_resume_bullets,curriculum/project_resume_bullets.csv,curriculum,1,projectId,STRING,false,"PK,FK",projects.projectId,54,Parent project ID
+project_resume_bullets,curriculum/project_resume_bullets.csv,curriculum,2,bulletOrder,INTEGER,false,PK,,54,1-based bullet index
+project_resume_bullets,curriculum/project_resume_bullets.csv,curriculum,3,bulletText,STRING,false,,,54,ATS-formatted bullet line
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,1,playlistId,STRING,false,PK,,14,Generated playlist ID
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,2,channelId,STRING,false,,,14,Channel slug
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,3,channelName,STRING,false,,,14,YouTube channel name
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,4,creator,STRING,false,,,14,Instructor name
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,5,playlistTitle,STRING,false,,,14,Playlist title
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,6,topic,STRING,false,,,14,Core subject focus
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,7,phaseMapped,STRING,false,,,14,Mapped roadmap phase
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,8,level,STRING,false,,,14,Beginner | Intermediate | Advanced
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,9,totalVideos,INTEGER,false,,,14,Video count
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,10,url,STRING,false,,,14,Playlist link
+hindi_playlists,curriculum/hindi_playlists.csv,curriculum,11,description,STRING,false,,,14,Curriculum coverage summary
+career_roles,curriculum/career_roles.csv,curriculum,1,roleId,STRING,false,PK,,6,Role identifier
+career_roles,curriculum/career_roles.csv,curriculum,2,title,STRING,false,,,6,Role title
+career_roles,curriculum/career_roles.csv,curriculum,3,hinglishTitle,STRING,false,,,6,Hinglish title
+career_roles,curriculum/career_roles.csv,curriculum,4,averageSalaryUSD,STRING,false,,,6,USD salary band
+career_roles,curriculum/career_roles.csv,curriculum,5,averageSalaryINR,STRING,false,,,6,INR salary band
+career_roles,curriculum/career_roles.csv,curriculum,6,demandLevel,STRING,false,,,6,Exploding | Very High | High
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,1,chapterId,STRING,false,PK,,12,Chapter ID ch-01..ch-12
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,2,chapterNumber,INTEGER,false,,,12,Sequential number
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,3,part,STRING,false,,,12,Book Part I..V
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,4,level,STRING,false,,,12,Beginner | Intermediate | Advanced | Interview Prep
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,5,roadmapPhase,STRING,false,,,12,Mapped roadmap phase
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,6,estMinutes,INTEGER,false,,,12,Estimated read time
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,7,title,STRING,false,,,12,English chapter title
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,8,hinglishTitle,STRING,false,,,12,Hinglish chapter title
+python_book_chapters,curriculum/python_book_chapters.csv,curriculum,9,codeTitle,STRING,false,,,12,Runnable lab filename
+python_book_sections,curriculum/python_book_sections.csv,curriculum,1,chapterId,STRING,false,"PK,FK",python_book_chapters.chapterId,36,Parent chapter ID
+python_book_sections,curriculum/python_book_sections.csv,curriculum,2,sectionOrder,INTEGER,false,PK,,36,1-based section order
+python_book_sections,curriculum/python_book_sections.csv,curriculum,3,heading,STRING,false,,,36,Section heading
+python_book_sections,curriculum/python_book_sections.csv,curriculum,4,englishBody,STRING,false,,,36,English explanation
+python_book_sections,curriculum/python_book_sections.csv,curriculum,5,hinglishBody,STRING,false,,,36,Hinglish explanation
+python_book_interview_qa,curriculum/python_book_interview_qa.csv,curriculum,1,chapterId,STRING,false,"PK,FK",python_book_chapters.chapterId,12,Parent chapter ID
+python_book_interview_qa,curriculum/python_book_interview_qa.csv,curriculum,2,qaOrder,INTEGER,false,PK,,12,1-based Q&A order
+python_book_interview_qa,curriculum/python_book_interview_qa.csv,curriculum,3,question,STRING,false,,,12,Interview question
+python_book_interview_qa,curriculum/python_book_interview_qa.csv,curriculum,4,englishAnswer,STRING,false,,,12,English answer
+python_book_interview_qa,curriculum/python_book_interview_qa.csv,curriculum,5,hinglishAnswer,STRING,false,,,12,Hinglish answer
+badges_catalog,curriculum/badges_catalog.csv,curriculum,1,badgeId,STRING,false,PK,,13,Badge ID
+badges_catalog,curriculum/badges_catalog.csv,curriculum,2,title,STRING,false,,,13,Badge name
+badges_catalog,curriculum/badges_catalog.csv,curriculum,3,category,STRING,false,,,13,streak | curriculum
+badges_catalog,curriculum/badges_catalog.csv,curriculum,4,tier,STRING,false,,,13,Bronze | Silver | Gold | Platinum
+badges_catalog,curriculum/badges_catalog.csv,curriculum,5,requirementLabel,STRING,false,,,13,Unlock rule
+badges_catalog,curriculum/badges_catalog.csv,curriculum,6,unlocked,BOOLEAN,false,,,13,Whether currently unlocked
+badges_catalog,curriculum/badges_catalog.csv,curriculum,7,currentProgress,INTEGER,false,,,13,Current progress value
+badges_catalog,curriculum/badges_catalog.csv,curriculum,8,targetProgress,INTEGER,false,,,13,Target threshold
+badges_catalog,curriculum/badges_catalog.csv,curriculum,9,progressPercent,INTEGER,false,,,13,0-100 completion percent
