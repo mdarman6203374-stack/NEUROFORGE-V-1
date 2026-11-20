@@ -52,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'twenty-month-plan', label: 'Master Plan' },
     { id: 'roadmap', label: 'Roadmap' },
     { id: 'daily-planner', label: 'Daily Planner' },
+    { id: 'peer-lounge', label: 'Peer Lounge' },
     { id: 'memory-lab', label: 'Memory Lab' },
     { id: 'code-rag-lab', label: 'Code & RAG Lab' },
     { id: 'hindi-playlists', label: 'YouTube Playlists' },

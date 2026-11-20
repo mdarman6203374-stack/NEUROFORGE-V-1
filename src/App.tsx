@@ -22,6 +22,9 @@ import { AchievementsView } from './components/AchievementsView';
 import { DailyQuoteBanner } from './components/DailyQuoteBanner';
 import { MemoryRetentionView } from './components/MemoryRetentionView';
 import { CodeRagLabView } from './components/CodeRagLabView';
+import { PeerStudyLoungeView } from './components/PeerStudyLoungeView';
+import { FocusModeMusicBar } from './components/FocusModeMusicBar';
+import { FocusMusicProvider } from './utils/focusMusicContext';
 import { useAuth } from './firebase/authContext';
 import { Language, SchedulePace, ProjectDetails, StreakMilestone, StreakState, StudyReminderConfig, LearnerTutorContext } from './types';
 import {
@@ -505,7 +508,8 @@ export default function App() {
   const focusSessionActive = isFocusMode && activeTab === 'daily-planner';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col font-sans">
+    <FocusMusicProvider>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col font-sans">
       {showLoadingScreen && (
         <LoadingPage
           isAuthLoading={isAuthLoading}
@@ -549,7 +553,7 @@ export default function App() {
       {/* Main Container */}
       <main
         className={`flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 ${
-          focusSessionActive ? 'max-w-6xl py-5 sm:py-7' : 'max-w-7xl py-8'
+          focusSessionActive ? 'max-w-6xl py-5 sm:py-7 pb-28' : 'max-w-7xl py-8'
         }`}
       >
         {!focusSessionActive && <DailyQuoteBanner language={language} />}
@@ -608,6 +612,10 @@ export default function App() {
               setActiveTab('code-rag-lab');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onOpenPeerLounge={() => {
+              setActiveTab('peer-lounge');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             onExportProgressPdf={() =>
               generateProgressAndNotesPdf({
                 pace,
@@ -618,6 +626,15 @@ export default function App() {
                 userEmail: user?.email || null
               })
             }
+          />
+        )}
+
+        {activeTab === 'peer-lounge' && (
+          <PeerStudyLoungeView
+            language={language}
+            completedConceptsCount={completedConcepts.length}
+            completedDaysCount={completedDays.length}
+            userDisplayName={user?.displayName || user?.email?.split('@')[0] || null}
           />
         )}
 
@@ -645,7 +662,13 @@ export default function App() {
         )}
 
         {activeTab === 'image-studio' && (
-          <ImageStudioView language={language} />
+          <ImageStudioView
+            language={language}
+            completedConcepts={completedConcepts}
+            completedDays={completedDays}
+            pace={pace}
+            streakState={streakState}
+          />
         )}
 
         {activeTab === 'hindi-playlists' && (
@@ -715,6 +738,12 @@ export default function App() {
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 03 Daily Planner
+              </button>
+              <button
+                onClick={() => setActiveTab('peer-lounge')}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
+              >
+                Peer Lounge
               </button>
               <button
                 onClick={() => setActiveTab('memory-lab')}
@@ -850,7 +879,11 @@ export default function App() {
 
       {/* Gentle In-App Study Reminder Toast */}
       {inAppReminderToast && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-2xl p-4 flex items-start gap-3">
+        <div
+          className={`fixed right-5 z-50 max-w-sm w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-2xl p-4 flex items-start gap-3 ${
+            focusSessionActive ? 'bottom-24' : 'bottom-5'
+          }`}
+        >
           <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
             <BellRing className="w-5 h-5" />
           </div>
@@ -882,6 +915,10 @@ export default function App() {
           </button>
         </div>
       )}
-    </div>
+
+      {/* Persistent Bottom Focus Mode Music Control Bar */}
+      {focusSessionActive && <FocusModeMusicBar language={language} />}
+      </div>
+    </FocusMusicProvider>
   );
 }

@@ -1,7 +1,6 @@
 import express, { Request, Response } from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -1272,6 +1271,130 @@ app.post('/api/generate-image', async (req: Request, res: Response) => {
 });
 
 /**
+ * Personalized 20-Month AI Roadmap Graphic Generator via Gemini Image Model
+ */
+app.post('/api/generate-roadmap-visual', async (req: Request, res: Response) => {
+  try {
+    const {
+      completedConceptsCount = 0,
+      totalConceptsCount = 36,
+      completedDaysCount = 0,
+      currentStreak = 0,
+      currentMonth = 1,
+      currentMonthTitle = 'Modern Python & AI Foundations',
+      completedPhases = [],
+      activePhase = 'Phase 0: Mathematical & CS Foundations for AI',
+      upcomingPhases = [],
+      styleTheme = 'neon-blueprint',
+      aspectRatio = '16:9',
+      customHighlight = '',
+      customPromptOverride = '',
+    } = req.body || {};
+
+    const safeTotal = Math.max(1, Number(totalConceptsCount) || 36);
+    const safeCompleted = Math.max(0, Math.min(safeTotal, Number(completedConceptsCount) || 0));
+    const pct = Math.round((safeCompleted / safeTotal) * 100);
+    const safeMonth = Math.max(1, Math.min(20, Number(currentMonth) || 1));
+
+    const validRatios = new Set(['1:1', '16:9', '9:16', '4:3', '3:4']);
+    const finalAspectRatio = validRatios.has(aspectRatio) ? aspectRatio : '16:9';
+
+    const styleDirectives: Record<string, string> = {
+      'neon-blueprint':
+        'High-precision dark architectural blueprint schematic infographic on deep obsidian slate (#070B14). Glowing cyan-emerald holographic circuits mark mastered milestones, a vibrant amber beacon highlights the current active node, and subtle dashed wireframe lines chart upcoming stations. Ultra-clean geometric nodes, crisp architectural lighting, studio vector depth.',
+      'isometric-mountain':
+        'Detailed 3D isometric miniature diorama showing an ascending mountain expedition trail spanning 20 illuminated basecamps toward a glowing AI summit citadel. Lush emerald-lit camps represent completed phases, a warm campfire & glowing surveyor flag marks the active campsite, and misty indigo peaks ahead show future phases. Pixar-meets-technical-diorama volumetric lighting.',
+      'editorial-poster':
+        'Museum-grade Swiss modernist architectural poster on warm textured dark charcoal paper with Bauhaus geometric tracks, vermilion red and electric cobalt accent lines, minimalist modular progress blocks, and crisp spatial hierarchy. Clean editorial graphic design.',
+      'neural-constellation':
+        'Cosmic deep-space neural constellation map on midnight indigo background. Mastered AI phases shine as bright golden-cyan interconnected star clusters with synaptic light beams, the current learning milestone glows as an intense pulsing supernova node, and future phases appear as distant crystalline nebulae waiting to ignite.',
+    };
+
+    const completedListText =
+      Array.isArray(completedPhases) && completedPhases.length > 0
+        ? completedPhases.slice(0, 9).join(', ')
+        : 'Starting Milestone (Foundation Preparation)';
+
+    const upcomingListText =
+      Array.isArray(upcomingPhases) && upcomingPhases.length > 0
+        ? upcomingPhases.slice(0, 6).join(', ')
+        : 'Final Frontier & Staff AI Systems Capstone';
+
+    const synthesizedPrompt =
+      typeof customPromptOverride === 'string' && customPromptOverride.trim().length > 20
+        ? customPromptOverride.trim()
+        : `Create a bespoke visual progression roadmap graphic illustrating a 20-Month AI Engineering Mastery Journey (${pct}% complete, Month ${safeMonth} of 20).
+Visual Direction: ${styleDirectives[styleTheme] || styleDirectives['neon-blueprint']}
+Journey Telemetry to Visualize:
+- Overall Progression Bar / Path: ${pct}% completed (${safeCompleted} of ${safeTotal} core concepts mastered, ${completedDaysCount} study days logged, ${currentStreak}-day active streak).
+- Illuminated Completed Zone: ${completedListText}.
+- Brightly Highlighted Active Beacon (Current Focus): Month ${safeMonth}/20 — "${currentMonthTitle}" inside ${activePhase}.
+- Future Horizon Zone Ahead: ${upcomingListText}.
+${customHighlight ? `- Personal Engineering Goal Highlight: "${String(customHighlight).slice(0, 140)}"` : ''}
+Composition Rules: Clear left-to-right or bottom-to-summit directional flow dividing Past Mastered Milestones, Present Active Node, and Future Horizon. Minimal clean minimal labels ("MONTH ${safeMonth}/20", "${pct}%", crisp milestone markers), zero cluttered garbled paragraphs, sharp studio contrast, inspiring engineering aesthetic.`;
+
+    const modelAttempts = ['gemini-3.1-flash-lite-image', 'gemini-nano-banana-2.1'];
+    let imageResultUrl: string | null = null;
+    let modelUsed = modelAttempts[0];
+    let lastErr: any = null;
+
+    for (const candidateModel of modelAttempts) {
+      try {
+        const response = await ai.models.generateContent({
+          model: candidateModel,
+          contents: { parts: [{ text: synthesizedPrompt }] },
+          config: {
+            imageConfig: {
+              aspectRatio: finalAspectRatio as any,
+              ...(candidateModel === 'gemini-nano-banana-2.1' ? { imageSize: '1K' } : {}),
+            },
+          },
+        });
+
+        for (const part of response.candidates?.[0]?.content?.parts ?? []) {
+          if (part.inlineData?.data) {
+            const mime = part.inlineData.mimeType ?? 'image/png';
+            imageResultUrl = `data:${mime};base64,${part.inlineData.data}`;
+            modelUsed = candidateModel;
+            break;
+          }
+        }
+        if (imageResultUrl) break;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`Roadmap visual generation failed on ${candidateModel}:`, err?.message);
+      }
+    }
+
+    if (!imageResultUrl) {
+      const msg = String(lastErr?.message || 'No roadmap graphic generated');
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+        res.status(429).json({ error: 'Gemini image quota/rate limit reached. Please wait a moment and retry.' });
+        return;
+      }
+      if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('API_KEY_INVALID')) {
+        res.status(403).json({ error: 'Gemini API key permission issue. Check Settings > Secrets.' });
+        return;
+      }
+      res.status(502).json({ error: lastErr?.message || 'Unable to generate roadmap graphic right now.' });
+      return;
+    }
+
+    res.json({
+      imageUrl: imageResultUrl,
+      modelUsed,
+      prompt: synthesizedPrompt,
+      aspectRatio: finalAspectRatio,
+    });
+  } catch (error: any) {
+    console.error('Roadmap Visual Generation Error:', error);
+    res.status(500).json({
+      error: error?.message || 'Failed to generate personalized 20-month roadmap graphic',
+    });
+  }
+});
+
+/**
  * Image-to-Video Animation API using gemini-omni-1.2-flash via Interactions API
  */
 app.post('/api/animate-video', async (req: Request, res: Response) => {
@@ -1431,6 +1554,7 @@ async function startServer() {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -1501,4 +1625,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export { app };
+export default app;

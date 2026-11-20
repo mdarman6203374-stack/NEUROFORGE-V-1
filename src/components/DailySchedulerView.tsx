@@ -78,6 +78,7 @@ interface DailySchedulerViewProps {
   completedConcepts?: string[];
   onNavigateMemoryLab?: (subTab?: 'srs' | 'feynman') => void;
   onOpenCodeLab?: (subTab?: 'python' | 'rag' | 'bugs') => void;
+  onOpenPeerLounge?: () => void;
 }
 
 const WEEKDAYS = [
@@ -114,7 +115,8 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
   onExportProgressPdf,
   completedConcepts = ['p0-1', 'p0-2'],
   onNavigateMemoryLab,
-  onOpenCodeLab
+  onOpenCodeLab,
+  onOpenPeerLounge
 }) => {
   const [schedule, setSchedule] = useState<DailyTask[]>(() => generateDailySchedule(pace));
   const [currentDay, setCurrentDay] = useState<number>(initialDay || 1);
@@ -1024,13 +1026,38 @@ export const DailySchedulerView: React.FC<DailySchedulerViewProps> = ({
             onExportReportPdf={onExportProgressPdf}
           />
 
-          {/* AI Study Buddy Peer Matcher & Local-State Progress Note Sharing */}
+          {/* Peer Study Lounge & AI Study Buddy */}
           {!isFocusMode && (
-            <AiStudyBuddyPanel
-              activeTask={activeTask}
-              language={language}
-              completedDaysCount={completedCount}
-            />
+            <div className="space-y-4">
+              {onOpenPeerLounge && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-emerald-950/30 dark:to-indigo-950/30 border border-emerald-200/80 dark:border-emerald-800/60 flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Peer Study Lounge · Synchronized Focus Timer</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                      {language === 'hinglish'
+                        ? 'Online learners ke saath topic join karein aur multi-tab synced Focus Timer run karein.'
+                        : 'See online learners, join a topic room, and launch a shared Focus Timer synced across active sessions.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onOpenPeerLounge}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer shrink-0"
+                  >
+                    Open Peer Study Lounge →
+                  </button>
+                </div>
+              )}
+
+              <AiStudyBuddyPanel
+                activeTask={activeTask}
+                language={language}
+                completedDaysCount={completedCount}
+              />
+            </div>
           )}
         </div>
 
