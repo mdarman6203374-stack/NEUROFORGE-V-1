@@ -27,6 +27,8 @@ import {
   Briefcase,
   Cpu,
   ChevronRight,
+  FileCheck2,
+  Database,
 } from 'lucide-react';
 import { Language, StreakMilestone, StreakState } from '../types';
 import { StreakTracker } from './StreakTracker';
@@ -115,6 +117,22 @@ const NAV_ITEMS: NavItemDef[] = [
     icon: Code2,
   },
   {
+    id: 'vram-calculator',
+    label: 'VRAM & Cost Calc',
+    desc: 'Size GPU VRAM (T4/L4/A100/H100) & API vs self-host cost',
+    hinglishDesc: '7B/70B GPU VRAM aur monthly cost calculator',
+    group: 'Interactive Labs',
+    icon: Cpu,
+  },
+  {
+    id: 'dataset-lab',
+    label: 'Dataset & Leakage',
+    desc: 'Clean messy ML CSVs & fix train/test data leakage in Python',
+    hinglishDesc: 'Messy CSVs clean karein aur train/test leakage fix karein',
+    group: 'Interactive Labs',
+    icon: Database,
+  },
+  {
     id: '3d-neural',
     label: '3D Neural Lab',
     desc: 'Interactive 3D attention & tensor visualizer',
@@ -161,6 +179,14 @@ const NAV_ITEMS: NavItemDef[] = [
     hinglishDesc: 'Skill radar, resume builder & mock interview',
     group: 'Projects & Career',
     icon: Briefcase,
+  },
+  {
+    id: 'career-kit',
+    label: 'Career Kit',
+    desc: '1-click ATS Resume, LinkedIn & GitHub README generator',
+    hinglishDesc: '1-click Resume, LinkedIn bio & GitHub README',
+    group: 'Projects & Career',
+    icon: FileCheck2,
   },
   {
     id: 'future-outlook',

@@ -37,6 +37,7 @@ import { ROADMAP_PHASES } from './data/roadmapData';
 import { generateDailySchedule } from './data/dailyScheduleData';
 import { sendGentleStudyNotification } from './utils/studyNotifications';
 import { generateProgressAndNotesPdf } from './utils/pdfGenerator';
+import aiBackdropImg from './assets/images/ai_engineering_backdrop_1795183987857.jpg';
 import { BellRing, X } from 'lucide-react';
 
 const DEFAULT_REMINDER_CONFIG: StudyReminderConfig = {
@@ -123,7 +124,7 @@ export default function App() {
   const [isApiDocsOpen, setIsApiDocsOpen] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
   const [memoryLabSubTab, setMemoryLabSubTab] = useState<'srs' | 'feynman'>('srs');
-  const [codeLabSubTab, setCodeLabSubTab] = useState<'python' | 'rag' | 'bugs'>('python');
+  const [codeLabSubTab, setCodeLabSubTab] = useState<'python' | 'rag' | 'bugs' | 'architecture' | 'vram-calc' | 'dataset-lab'>('python');
 
   // Exit Focus Mode when leaving Daily Planner or pressing Escape
   useEffect(() => {
@@ -509,7 +510,24 @@ export default function App() {
 
   return (
     <FocusMusicProvider>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col font-sans">
+      <div className="relative min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 flex flex-col font-sans">
+      {/* Subtle Inspirational AI Engineering Backdrop */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-0 pointer-events-none overflow-hidden select-none"
+      >
+        <img
+          src={aiBackdropImg}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+          className="w-full h-full object-cover object-center opacity-[0.10] dark:opacity-[0.26] transition-opacity duration-300"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/75 via-slate-50/82 to-slate-50/92 dark:from-slate-950/55 dark:via-slate-950/72 dark:to-slate-950/88" />
+      </div>
+
       {showLoadingScreen && (
         <LoadingPage
           isAuthLoading={isAuthLoading}
@@ -522,7 +540,7 @@ export default function App() {
 
       {/* Top Navigation Header + Separate 4-Step Roadmap Workflow Tabs (Hidden in Focus Mode) */}
       {!focusSessionActive && (
-        <>
+        <div className="relative z-40">
           <Header
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -547,12 +565,12 @@ export default function App() {
             completedConceptsCount={completedConcepts.length}
             totalConceptsCount={totalConceptsCount}
           />
-        </>
+        </div>
       )}
 
       {/* Main Container */}
       <main
-        className={`flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 ${
+        className={`relative z-10 flex-1 w-full mx-auto px-4 sm:px-6 lg:px-8 ${
           focusSessionActive ? 'max-w-6xl py-5 sm:py-7 pb-28' : 'max-w-7xl py-8'
         }`}
       >
@@ -653,6 +671,20 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'vram-calculator' && (
+          <CodeRagLabView
+            language={language}
+            initialSubTab="vram-calc"
+          />
+        )}
+
+        {activeTab === 'dataset-lab' && (
+          <CodeRagLabView
+            language={language}
+            initialSubTab="dataset-lab"
+          />
+        )}
+
         {activeTab === '3d-neural' && (
           <ThreeNeuralVisualizer language={language} />
         )}
@@ -703,6 +735,18 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'career-kit' && (
+          <CareersView
+            language={language}
+            completedConcepts={completedConcepts}
+            completedDays={completedDays}
+            pace={pace}
+            streakState={streakState}
+            userEmail={user?.email || null}
+            initialCareerTab="career-kit"
+          />
+        )}
+
         {activeTab === 'future-outlook' && (
           <FutureOutlookView language={language} />
         )}
@@ -710,7 +754,7 @@ export default function App() {
 
       {/* Footer (Hidden in Focus Mode) */}
       {!focusSessionActive && (
-        <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-8">
+        <footer className="relative z-10 mt-auto border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-900 dark:text-white">
@@ -798,6 +842,24 @@ export default function App() {
                 className="hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 Career Guide
+              </button>
+              <button
+                onClick={() => setActiveTab('vram-calculator')}
+                className="hover:text-cyan-600 dark:hover:text-cyan-400 font-semibold transition-colors cursor-pointer"
+              >
+                VRAM & Cost Calc
+              </button>
+              <button
+                onClick={() => setActiveTab('dataset-lab')}
+                className="hover:text-amber-600 dark:hover:text-amber-400 font-semibold transition-colors cursor-pointer"
+              >
+                Dataset & Leakage
+              </button>
+              <button
+                onClick={() => setActiveTab('career-kit')}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
+              >
+                1-Click Career Kit
               </button>
               <button
                 onClick={() => setIsApiDocsOpen(true)}

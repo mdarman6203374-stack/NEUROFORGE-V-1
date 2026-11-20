@@ -38,7 +38,8 @@ export interface EvaluatedBadge {
 export const evaluateUserBadges = (
   streakState: StreakState,
   completedConcepts: string[],
-  language: Language
+  language: Language,
+  completedDaysCount = 0
 ): EvaluatedBadge[] => {
   const bestStreak = Math.max(streakState.currentStreak || 0, streakState.longestStreak || 0);
   const loggedDaysCount = streakState.historyDates?.length || 0;
@@ -47,6 +48,10 @@ export const evaluateUserBadges = (
   const masteredCount = completedConcepts.filter((id) =>
     ROADMAP_PHASES.some((p) => p.concepts.some((c) => c.id === id))
   ).length;
+  const combinedMasteryCount = Math.max(
+    completedConcepts.length,
+    masteredCount + Math.max(0, completedDaysCount)
+  );
 
   const phase0 = ROADMAP_PHASES[0];
   const phase0Total = phase0 ? phase0.concepts.length : 4;
@@ -243,6 +248,22 @@ export const evaluateUserBadges = (
       progressPercent: pct(completedPhasesCount, 3),
       progressText: `${Math.min(completedPhasesCount, 3)} / 3 phases`,
       requirementLabel: '3 complete phases'
+    },
+    {
+      id: 'fifty-milestones',
+      title: '50-Module Polymath',
+      hinglishTitle: '50-Module Polymath',
+      description: 'Reach 50 combined concepts learned and daily engineering sessions logged.',
+      hinglishDescription: '50 combined concepts aur daily engineering study sessions complete karein.',
+      category: 'curriculum',
+      tier: 'Platinum',
+      icon: 'Award',
+      unlocked: combinedMasteryCount >= 50,
+      currentProgress: Math.min(combinedMasteryCount, 50),
+      targetProgress: 50,
+      progressPercent: pct(combinedMasteryCount, 50),
+      progressText: `${Math.min(combinedMasteryCount, 50)} / 50 modules`,
+      requirementLabel: '50 concepts & logs'
     },
     {
       id: 'roadmap-master',

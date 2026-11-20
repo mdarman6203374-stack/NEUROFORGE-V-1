@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Briefcase,
   DollarSign,
@@ -12,13 +12,15 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
-  FileText
+  FileText,
+  FileCheck2
 } from 'lucide-react';
 import { CAREER_ROLES_DATA } from '../data/careerData';
 import { Language, SchedulePace, StreakState } from '../types';
 import { MockAiInterviewer } from './MockAiInterviewer';
 import { LivePortfolioBuilder } from './LivePortfolioBuilder';
 import { DomainProficiencyRadar } from './DomainProficiencyRadar';
+import { CareerKitGenerator } from './CareerKitGenerator';
 
 interface CareersViewProps {
   language: Language;
@@ -27,6 +29,7 @@ interface CareersViewProps {
   pace?: SchedulePace;
   streakState?: StreakState;
   userEmail?: string | null;
+  initialCareerTab?: 'roles' | 'interviewer' | 'portfolio' | 'career-kit';
 }
 
 export const CareersView: React.FC<CareersViewProps> = ({
@@ -41,9 +44,16 @@ export const CareersView: React.FC<CareersViewProps> = ({
     historyDates: [],
     celebratedMilestones: []
   },
-  userEmail = null
+  userEmail = null,
+  initialCareerTab = 'roles'
 }) => {
-  const [careerTab, setCareerTab] = useState<'roles' | 'interviewer' | 'portfolio'>('roles');
+  const [careerTab, setCareerTab] = useState<'roles' | 'interviewer' | 'portfolio' | 'career-kit'>(
+    initialCareerTab
+  );
+
+  useEffect(() => {
+    setCareerTab(initialCareerTab);
+  }, [initialCareerTab]);
   const [selectedRoleId, setSelectedRoleId] = useState<string>('ai-llm-engineer');
   const [userSkills, setUserSkills] = useState<string[]>([
     'Python 3.12',
@@ -151,6 +161,18 @@ export const CareersView: React.FC<CareersViewProps> = ({
               <FileText className="w-3.5 h-3.5" />
               <span>Live Portfolio & Dossier</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setCareerTab('career-kit')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                careerTab === 'career-kit'
+                  ? 'bg-cyan-600 text-white shadow-xs'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              <FileCheck2 className="w-3.5 h-3.5" />
+              <span>1-Click Career Kit</span>
+            </button>
           </div>
         </div>
       </div>
@@ -161,6 +183,17 @@ export const CareersView: React.FC<CareersViewProps> = ({
 
       {careerTab === 'portfolio' && (
         <LivePortfolioBuilder
+          completedConcepts={completedConcepts}
+          completedDays={completedDays}
+          pace={pace}
+          streakState={streakState}
+          language={language}
+          userEmail={userEmail}
+        />
+      )}
+
+      {careerTab === 'career-kit' && (
+        <CareerKitGenerator
           completedConcepts={completedConcepts}
           completedDays={completedDays}
           pace={pace}
