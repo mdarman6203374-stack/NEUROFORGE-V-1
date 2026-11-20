@@ -125,7 +125,7 @@ export const StreakTracker: React.FC<StreakTrackerProps> = ({
         <span className="font-mono font-bold text-slate-900 dark:text-white">
           {currentStreak}
         </span>
-        <span className="hidden sm:inline font-semibold">
+        <span className="hidden xl:inline font-semibold whitespace-nowrap">
           {currentStreak === 1 ? 'Day Streak' : 'Days Streak'}
         </span>
       </button>

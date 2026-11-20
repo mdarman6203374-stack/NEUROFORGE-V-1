@@ -48,7 +48,7 @@ export const ScheduleQuickTabs: React.FC<ScheduleQuickTabsProps> = ({
       step: '02',
       id: 'roadmap',
       label: 'Roadmap',
-      sublabel: 'Phase 0–7',
+      sublabel: 'Phase 0–8',
       icon: Map
     },
     {

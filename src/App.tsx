@@ -520,7 +520,7 @@ export default function App() {
         />
       )}
 
-      {/* Top 3-Zone Navigation Header + Compact Serial Schedule Tabs (Hidden in Focus Mode) */}
+      {/* Top Navigation Header + Separate 4-Step Roadmap Workflow Tabs (Hidden in Focus Mode) */}
       {!focusSessionActive && (
         <>
           <Header
